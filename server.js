@@ -14,10 +14,11 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-random-string';
+const DB_PATH = process.env.DB_PATH || './data.db';   // <-- configurable via env
 const SALT_ROUNDS = 10;
 
 // ---------- Database (SQLite with WAL) ----------
-const db = new Database('data.db');
+const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
 db.exec(`
@@ -46,7 +47,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname)); // serves index.html from root
 
-// JWT auth middleware
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer '))
@@ -90,7 +90,7 @@ app.post('/api/login', async (req, res) => {
   res.json({ user: { id: user.id, email: user.email }, token });
 });
 
-// ---------- Item Routes (scoped to authenticated user) ----------
+// ---------- Item Routes (scoped to user) ----------
 app.get('/api/items', authMiddleware, (req, res) => {
   const items = db.prepare('SELECT id, title FROM items WHERE user_id = ? ORDER BY id DESC').all(req.user.id);
   res.json(items);
@@ -122,7 +122,7 @@ app.delete('/api/items/:id', authMiddleware, (req, res) => {
 });
 
 // ---------- WebSocket (real‑time, sends old and new) ----------
-const clients = new Map(); // ws -> userId
+const clients = new Map();
 
 wss.on('connection', (ws) => {
   ws.on('message', (msg) => {
@@ -168,4 +168,5 @@ function triggerWebhooks(event, oldRecord, newRecord) {
 // ---------- Start ----------
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Database at ${DB_PATH}`);
 });
