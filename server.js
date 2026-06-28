@@ -9,6 +9,23 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 require('dotenv').config();
 
+// Write startup log
+function startupLog(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  console.log(line);
+  try { fs.appendFileSync('/app/startup.log', line + '\n'); } catch(e) {}
+}
+
+// Catch any errors that would crash the process
+process.on('uncaughtException', (err) => {
+  startupLog('UNCAUGHT EXCEPTION: ' + err.stack);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  startupLog('UNHANDLED REJECTION: ' + reason);
+  process.exit(1);
+});
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -22,12 +39,15 @@ let db;
 
 // ---------- Database init ----------
 async function initDatabase() {
+  startupLog(`Starting app with DB_PATH=${DB_PATH}`);
   const SQL = await initSqlJs();
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(buffer);
+    startupLog(`Database loaded from ${DB_PATH}`);
   } else {
     db = new SQL.Database();
+    startupLog(`New database created at ${DB_PATH}`);
   }
   db.run('PRAGMA journal_mode = WAL;');
 
@@ -42,8 +62,8 @@ async function initDatabase() {
   db.run(`CREATE TABLE IF NOT EXISTS _tables (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
-    columns TEXT NOT NULL,      -- JSON array of column names
-    privacy TEXT DEFAULT '{}'   -- JSON: { read: "rule", write: "rule" }
+    columns TEXT NOT NULL,
+    privacy TEXT DEFAULT '{}'
   );`);
 
   // Webhooks per table
@@ -54,7 +74,7 @@ async function initDatabase() {
     event TEXT NOT NULL CHECK(event IN ('insert','update','delete'))
   );`);
 
-  // Ensure the default 'items' table exists
+  // Ensure default 'items' table exists
   const existing = db.exec("SELECT name FROM _tables WHERE name = 'items'");
   if (existing.length === 0 || existing[0].values.length === 0) {
     db.run("INSERT INTO _tables (name, columns, privacy) VALUES ('items', '[\"title\"]', '{}')");
@@ -66,22 +86,12 @@ async function initDatabase() {
     );`);
   }
   saveDb();
-  console.log('Database ready.');
+  startupLog('Database ready.');
 }
 
 function saveDb() {
-  fs.writeFileSync(DB_PATH, Buffer.from(db.export()));
-}
-
-// ---------- Helpers ----------
-function parseColumns(colsJson) {
-  try { return JSON.parse(colsJson); } catch { return []; }
-}
-
-// Apply privacy rule: replace @user_id with actual user id
-function applyRule(rule, userId) {
-  if (!rule || !userId) return '';
-  return rule.replace(/@user_id/g, userId);
+  const data = db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
 // ---------- Middleware ----------
@@ -101,7 +111,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// ---------- Auth routes (unchanged) ----------
+// ---------- Auth routes ----------
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
@@ -133,38 +143,28 @@ app.get('/api/tables', authMiddleware, (req, res) => {
   const tables = [];
   while (stmt.step()) {
     const t = stmt.getAsObject();
-    tables.push({
-      name: t.name,
-      columns: parseColumns(t.columns),
-      privacy: JSON.parse(t.privacy || '{}')
-    });
+    tables.push({ name: t.name, columns: JSON.parse(t.columns), privacy: JSON.parse(t.privacy || '{}') });
   }
   stmt.free();
   res.json(tables);
 });
 
 app.post('/api/tables', authMiddleware, (req, res) => {
-  const { name, columns } = req.body;   // columns: array of strings
-  if (!name || !columns || !Array.isArray(columns)) return res.status(400).json({ error: 'Name and columns array required' });
+  const { name, columns } = req.body;
+  if (!name || !Array.isArray(columns)) return res.status(400).json({ error: 'Name and columns array required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
-  if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
-
-  // Create SQLite table
   const colDefs = columns.map(c => `${c.replace(/[^a-zA-Z0-9_]/g, '')} TEXT`).join(', ');
   try {
     db.run(`CREATE TABLE ${safeName} (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, ${colDefs})`);
     db.run('INSERT INTO _tables (name, columns, privacy) VALUES (?, ?, ?)', [safeName, JSON.stringify(columns), '{}']);
     saveDb();
     res.status(201).json({ name: safeName, columns });
-  } catch (err) {
-    res.status(400).json({ error: 'Table already exists or invalid columns' });
-  }
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
   const { read, write } = req.body;
-  const privacy = JSON.stringify({ read: read || '', write: write || '' });
-  db.run('UPDATE _tables SET privacy = ? WHERE name = ?', [privacy, req.params.name]);
+  db.run('UPDATE _tables SET privacy = ? WHERE name = ?', [JSON.stringify({ read: read || '', write: write || '' }), req.params.name]);
   saveDb();
   res.json({ success: true });
 });
@@ -172,94 +172,65 @@ app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
 // ---------- Dynamic CRUD ----------
 app.get('/api/data/:table', authMiddleware, (req, res) => {
   const tableName = req.params.table;
-  const tableMeta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
-  if (tableMeta.length === 0 || tableMeta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
-  const { columns, privacy } = tableMeta[0].values[0];
-  const cols = parseColumns(columns);
-  const priv = JSON.parse(privacy || '{}');
-  
-  let query = `SELECT id, user_id, ${cols.map(c => c).join(', ')} FROM ${tableName}`;
-  if (priv.read) {
-    query += ` WHERE ${applyRule(priv.read, req.user.id)}`;
-  }
+  const meta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
+  if (meta.length === 0 || meta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
+  const columns = JSON.parse(meta[0].values[0][0]);
+  const privacy = JSON.parse(meta[0].values[0][1] || '{}');
+  let query = `SELECT id, user_id, ${columns.join(', ')} FROM ${tableName}`;
+  if (privacy.read) query += ` WHERE ${privacy.read.replace(/@user_id/g, req.user.id)}`;
   const result = db.exec(query);
   if (result.length === 0) return res.json([]);
-  // Convert to array of objects
-  const rows = [];
-  const rawCols = result[0].columns;
-  const values = result[0].values;
-  values.forEach(vals => {
+  const rows = result[0].values.map(vals => {
     const row = {};
-    rawCols.forEach((col, i) => row[col] = vals[i]);
-    rows.push(row);
+    result[0].columns.forEach((col, i) => row[col] = vals[i]);
+    return row;
   });
   res.json(rows);
 });
 
 app.post('/api/data/:table', authMiddleware, (req, res) => {
   const tableName = req.params.table;
-  const tableMeta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
-  if (tableMeta.length === 0 || tableMeta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
-  const { columns, privacy } = tableMeta[0].values[0];
-  const cols = parseColumns(columns);
-  const priv = JSON.parse(privacy || '{}');
+  const meta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
+  if (meta.length === 0 || meta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
+  const columns = JSON.parse(meta[0].values[0][0]);
+  const privacy = JSON.parse(meta[0].values[0][1] || '{}');
+  if (privacy.write && !privacy.write.replace(/@user_id/g, req.user.id)) return res.status(403).json({ error: 'Write rule prevents creation' });
 
-  // Apply write rule if present
-  if (priv.write) {
-    const ruleApplied = applyRule(priv.write, req.user.id);
-    if (!ruleApplied) return res.status(403).json({ error: 'Write rule prevents creation' });
-  }
-
-  const fields = cols.filter(c => req.body[c] !== undefined);
-  if (fields.length === 0) return res.status(400).json({ error: 'No valid fields provided' });
+  const fields = columns.filter(c => req.body[c] !== undefined);
   const placeholders = fields.map(() => '?').join(', ');
   const values = fields.map(f => req.body[f]);
-  try {
-    db.run(`INSERT INTO ${tableName} (user_id, ${fields.join(', ')}) VALUES (?, ${placeholders})`, [req.user.id, ...values]);
-    saveDb();
-    const id = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
-    const newRow = { id, user_id: req.user.id };
-    fields.forEach((f, i) => newRow[f] = values[i]);
-    broadcastChange('insert', null, newRow, tableName);
-    triggerWebhooks('insert', null, newRow, tableName);
-    res.status(201).json(newRow);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+  db.run(`INSERT INTO ${tableName} (user_id, ${fields.join(', ')}) VALUES (?, ${placeholders})`, [req.user.id, ...values]);
+  saveDb();
+  const id = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+  const newRow = { id, user_id: req.user.id };
+  fields.forEach((f, i) => newRow[f] = values[i]);
+  broadcastChange('insert', null, newRow, tableName);
+  triggerWebhooks('insert', null, newRow, tableName);
+  res.status(201).json(newRow);
 });
 
 app.delete('/api/data/:table/:id', authMiddleware, (req, res) => {
   const tableName = req.params.table;
-  const id = req.params.id;
-  const tableMeta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
-  if (tableMeta.length === 0 || tableMeta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
-  const { privacy } = tableMeta[0].values[0];
-  const priv = JSON.parse(privacy || '{}');
-
-  // Check write rule
-  if (priv.write) {
-    const rule = applyRule(priv.write, req.user.id);
-    if (!rule) return res.status(403).json({ error: 'Write rule prevents deletion' });
-  }
+  const meta = db.exec(`SELECT columns, privacy FROM _tables WHERE name = '${tableName}'`);
+  if (meta.length === 0 || meta[0].values.length === 0) return res.status(404).json({ error: 'Table not found' });
+  const privacy = JSON.parse(meta[0].values[0][1] || '{}');
 
   const rowStmt = db.prepare(`SELECT * FROM ${tableName} WHERE id = ?`);
-  rowStmt.bind([id]);
+  rowStmt.bind([req.params.id]);
   if (!rowStmt.step()) return res.status(404).json({ error: 'Row not found' });
   const oldRow = rowStmt.getAsObject();
   rowStmt.free();
 
-  if (priv.write && oldRow.user_id !== req.user.id) {
-    return res.status(403).json({ error: 'Not owner' });
-  }
+  if (privacy.write && oldRow.user_id !== req.user.id) return res.status(403).json({ error: 'Not owner' });
 
-  db.run(`DELETE FROM ${tableName} WHERE id = ?`, [id]);
+  db.run(`DELETE FROM ${tableName} WHERE id = ?`, [req.params.id]);
   saveDb();
   broadcastChange('delete', oldRow, null, tableName);
   triggerWebhooks('delete', oldRow, null, tableName);
   res.json({ success: true });
 });
 
-// ---------- Webhooks per table ----------
+// Webhooks
 app.get('/api/webhooks/:table', authMiddleware, (req, res) => {
   const stmt = db.prepare('SELECT id, url, event FROM _webhooks WHERE table_name = ?');
   stmt.bind([req.params.table]);
@@ -286,7 +257,7 @@ app.delete('/api/webhooks/:id', authMiddleware, (req, res) => {
 // Health
 app.get('/health', (req, res) => res.send('OK'));
 
-// ---------- WebSocket ----------
+// WebSocket
 const clients = new Map();
 wss.on('connection', (ws) => {
   ws.on('message', (msg) => {
@@ -307,7 +278,6 @@ function broadcastChange(event, oldRecord, newRecord, table) {
   wss.clients.forEach(ws => ws.readyState === WebSocket.OPEN && ws.send(msg));
 }
 
-// ---------- Webhooks ----------
 function triggerWebhooks(event, oldRecord, newRecord, table) {
   const stmt = db.prepare('SELECT url FROM _webhooks WHERE table_name = ? AND event = ?');
   stmt.bind([table, event]);
@@ -318,7 +288,12 @@ function triggerWebhooks(event, oldRecord, newRecord, table) {
   stmt.free();
 }
 
-// Start
+// Start everything
 initDatabase().then(() => {
-  server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
-}).catch(err => { console.error('Init failed:', err); process.exit(1); });
+  server.listen(PORT, '0.0.0.0', () => {
+    startupLog(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}).catch(err => {
+  startupLog('DATABASE INIT FAILED: ' + err.stack);
+  process.exit(1);
+});
