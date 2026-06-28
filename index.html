@@ -29,7 +29,7 @@
   </script>
   <style>
     /* Force text colors for dark/light mode */
-    body { color: #000000; background-color: #f9fafb; transition: color 0.2s, background-color 0.2s; }
+    body { color: #000000; background-color: #ffffff; transition: color 0.2s, background-color 0.2s; }
     .dark body { color: #ffffff; background-color: #111827; }
     /* Ensure all text inherits the proper color */
     .dark, .dark * { border-color: #374151; }
@@ -49,6 +49,20 @@
     th { cursor: pointer; user-select: none; }
     th:hover { background-color: rgba(0,0,0,0.05); }
     .dark th:hover { background-color: rgba(255,255,255,0.05); }
+    /* Privacy rule rows */
+    .privacy-rule-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+    @media (max-width: 640px) {
+      .privacy-rule-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
   </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 h-screen flex transition-colors">
@@ -72,7 +86,11 @@
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
           <h2 class="font-bold text-lg text-gray-800 dark:text-white">Tables</h2>
-          <button onclick="openCreateTableModal()" class="bg-brand hover:bg-secondary text-white w-7 h-7 rounded-full flex items-center justify-center text-xl leading-none border-2 border-secondary transition">+</button>
+          <button onclick="openCreateTableModal()" class="bg-brand hover:bg-secondary text-white w-7 h-7 rounded-full flex items-center justify-center text-xl leading-none border-2 border-secondary transition">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+          </button>
         </div>
         <ul id="table-list" class="space-y-1"></ul>
       </div>
@@ -202,24 +220,29 @@
     </div>
   </div>
 
-  <!-- Privacy Modal -->
+  <!-- Privacy Modal (now with Update rules) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Privacy Rules for <span id="privacy-table-name"></span></h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Read Access</h4>
-          <div id="read-rules" class="space-y-2"></div>
+          <div id="read-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('read')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
         <div>
           <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Write Access</h4>
-          <div id="write-rules" class="space-y-2"></div>
+          <div id="write-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('write')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
         <div>
+          <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Update Access</h4>
+          <div id="update-rules" class="space-y-1"></div>
+          <button onclick="addPrivacyCondition('update')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
+        </div>
+        <div>
           <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Delete Access</h4>
-          <div id="delete-rules" class="space-y-2"></div>
+          <div id="delete-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('delete')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
       </div>
@@ -236,7 +259,10 @@
     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-bold text-gray-800 dark:text-white">API Documentation – <span id="api-table-name"></span></h3>
-        <button onclick="closeModal('api-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">✕</button>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleApiToken()" class="text-xs text-brand hover:text-secondary border border-secondary px-2 py-1 rounded">Show token</button>
+          <button onclick="closeModal('api-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">✕</button>
+        </div>
       </div>
       <div id="api-content" class="space-y-6"></div>
     </div>
@@ -287,7 +313,8 @@
     let tableToRename = null;
     const COLUMN_TYPES = ['string','text','int','int8','integer','float','number','boolean','date','datetime'];
     const OPERATORS = ['eq','neq','gt','lt','gte','lte','contains','not_contains'];
-    let privacyRules = { read: [], write: [], delete: [] };
+    let privacyRules = { read: [], write: [], update: [], delete: [] };
+    let showRealToken = false; // for API docs
 
     // ================ DARK MODE ================
     function toggleDarkMode() {
@@ -543,7 +570,10 @@
 
     // ================ ADD ROW ================
     function openAddRowModal() {
-      if (!selectedTable) return;
+      if (!selectedTable) {
+        showToast('Please select a table first', true);
+        return;
+      }
       const fieldsDiv = document.getElementById('add-row-fields');
       fieldsDiv.innerHTML = currentColumns.map(c => {
         const type = c.type || 'string';
@@ -769,7 +799,7 @@
       }
     }
 
-    // ================ PRIVACY (DROPDOWNS, ONE ROW) ================
+    // ================ PRIVACY (with Update rules) ================
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -777,27 +807,28 @@
       const priv = table?.privacy || {};
       privacyRules.read = priv.read ? priv.read.split(' AND ').map(s=>s.trim()) : [];
       privacyRules.write = priv.write ? priv.write.split(' AND ').map(s=>s.trim()) : [];
+      privacyRules.update = priv.update ? priv.update.split(' AND ').map(s=>s.trim()) : [];
       privacyRules.delete = priv.delete ? priv.delete.split(' AND ').map(s=>s.trim()) : [];
       renderPrivacyRules();
       document.getElementById('privacy-modal').classList.add('active');
     }
 
     function renderPrivacyRules() {
-      ['read','write','delete'].forEach(op => {
+      ['read','write','update','delete'].forEach(op => {
         const container = document.getElementById(`${op}-rules`);
         container.innerHTML = privacyRules[op].map((rule, idx) => {
           const parts = rule.split(' ');
           const field = parts[0]||'';
           const opVal = parts[1]||'';
           const value = parts.slice(2).join(' ')||'';
-          return `<div class="flex items-center gap-1 p-1 border rounded dark:border-gray-600">
-            <select class="flex-1 text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyField('${op}',${idx},this.value)">
+          return `<div class="privacy-rule-row">
+            <select class="flex-1 min-w-[100px] text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyField('${op}',${idx},this.value)">
               ${currentColumns.map(c => `<option value="${c.name}" ${field===c.name?'selected':''}>${c.name}</option>`).join('')}
             </select>
             <select class="w-20 text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyOp('${op}',${idx},this.value)">
               ${OPERATORS.map(o => `<option value="${o}" ${opVal===o?'selected':''}>${o}</option>`).join('')}
             </select>
-            <select class="flex-1 text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyValue('${op}',${idx},this.value)">
+            <select class="flex-1 min-w-[120px] text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyValue('${op}',${idx},this.value)">
               <option value="@user_id" ${value==='@user_id'?'selected':''}>@user_id</option>
               <optgroup label="Other tables">
                 ${allTables.filter(t => t.name !== selectedTable).map(t => 
@@ -829,6 +860,7 @@
         body: JSON.stringify({
           read: privacyRules.read.join(' AND '),
           write: privacyRules.write.join(' AND '),
+          update: privacyRules.update.join(' AND '),
           delete: privacyRules.delete.join(' AND ')
         })
       });
@@ -838,6 +870,11 @@
     }
 
     // ================ API DOCS ================
+    function toggleApiToken() {
+      showRealToken = !showRealToken;
+      openApiModal(); // refresh content
+    }
+
     function openApiModal() {
       if (!selectedTable) return;
       document.getElementById('api-table-name').textContent = selectedTable;
@@ -851,19 +888,20 @@
         { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
         { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
       ];
+      const tokenDisplay = showRealToken && token ? token : 'YOUR_TOKEN';
       document.getElementById('api-content').innerHTML = methods.map(m => {
         const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
         const curlEx = m.method === 'GET'
-          ? `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer YOUR_TOKEN"`
-          : `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
+          ? `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`
+          : `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
         const nodeEx = m.method === 'GET'
           ? `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {
-  headers: { 'Authorization': 'Bearer YOUR_TOKEN' }
+  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }
 });
 const data = await res.json();`
           : `const res = await fetch('${base}${m.url}', {
   method: '${m.method}',
-  headers: { 'Authorization': 'Bearer YOUR_TOKEN', 'Content-Type': 'application/json' },
+  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },
   body: JSON.stringify(${JSON.stringify(exampleFields)})
 });
 const data = await res.json();`;
