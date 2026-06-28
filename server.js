@@ -7,6 +7,7 @@ const cors = require('cors');
 const axios = require('axios');
 const Database = require('better-sqlite3');
 const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -19,10 +20,9 @@ const DB_PATH = process.env.DB_PATH || './data.db';
 const SALT_ROUNDS = 10;
 
 // Create directory for DB_PATH if needed
-const dbDir = require('path').dirname(DB_PATH);
+const dbDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
-// Database
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
@@ -49,7 +49,7 @@ db.exec(`
 // Ensure default 'items' table exists
 const existing = db.prepare("SELECT name FROM _tables WHERE name = 'items'").get();
 if (!existing) {
-  db.prepare("INSERT INTO _tables (name, columns, privacy) VALUES (?, ?, ?)").run('items', '["title"]', '{}');
+  db.prepare("INSERT INTO _tables (name, columns, privacy) VALUES (?, ?, ?)").run('items', '[{"name":"title","type":"string"}]', '{}');
   db.exec(`CREATE TABLE items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -70,7 +70,9 @@ function authMiddleware(req, res, next) {
   try {
     req.user = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
     next();
-  } catch { return res.status(401).json({ error: 'Invalid token' }); }
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 }
 
 // Auth routes
@@ -96,19 +98,34 @@ app.post('/api/login', async (req, res) => {
 // Table management
 app.get('/api/tables', authMiddleware, (req, res) => {
   const tables = db.prepare('SELECT name, columns, privacy FROM _tables ORDER BY id').all();
-  res.json(tables.map(t => ({ name: t.name, columns: JSON.parse(t.columns), privacy: JSON.parse(t.privacy || '{}') })));
+  res.json(tables.map(t => ({
+    name: t.name,
+    columns: JSON.parse(t.columns),
+    privacy: JSON.parse(t.privacy || '{}')
+  })));
 });
 
 app.post('/api/tables', authMiddleware, (req, res) => {
-  const { name, columns } = req.body;
-  if (!name || !Array.isArray(columns)) return res.status(400).json({ error: 'Name and columns required' });
+  const { name, columns } = req.body;   // columns: [{name, type}] 
+  if (!name || !Array.isArray(columns) || columns.length === 0)
+    return res.status(400).json({ error: 'Name and at least one column required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
-  const colDefs = columns.map(c => `${c.replace(/[^a-zA-Z0-9_]/g, '')} TEXT`).join(', ');
+  if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
+
+  // Build SQL column definitions
+  const colDefs = columns.map(c => {
+    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '');
+    const type = mapType(c.type);
+    return `${colName} ${type}`;
+  }).join(', ');
+
   try {
     db.prepare(`CREATE TABLE ${safeName} (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, ${colDefs})`).run();
     db.prepare('INSERT INTO _tables (name, columns, privacy) VALUES (?, ?, ?)').run(safeName, JSON.stringify(columns), '{}');
     res.status(201).json({ name: safeName, columns });
-  } catch (err) { res.status(400).json({ error: err.message }); }
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
@@ -117,11 +134,29 @@ app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
   res.json({ success: true });
 });
 
+// Helper to map UI type to SQLite affinity
+function mapType(type) {
+  switch (type) {
+    case 'int':
+    case 'int8':
+    case 'integer': return 'INTEGER';
+    case 'float':
+    case 'number': return 'REAL';
+    case 'boolean':
+    case 'bool': return 'INTEGER';  // SQLite no boolean
+    case 'date':
+    case 'datetime': return 'TEXT';
+    case 'text':
+    case 'string':
+    default: return 'TEXT';
+  }
+}
+
 // Dynamic CRUD
 app.get('/api/data/:table', authMiddleware, (req, res) => {
   const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
   if (!meta) return res.status(404).json({ error: 'Table not found' });
-  const columns = JSON.parse(meta.columns);
+  const columns = JSON.parse(meta.columns).map(c => c.name);
   const privacy = JSON.parse(meta.privacy || '{}');
   let query = `SELECT id, user_id, ${columns.join(', ')} FROM ${req.params.table}`;
   if (privacy.read) query += ` WHERE ${privacy.read.replace(/@user_id/g, req.user.id)}`;
@@ -135,14 +170,14 @@ app.post('/api/data/:table', authMiddleware, (req, res) => {
   const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
   if (!meta) return res.status(404).json({ error: 'Table not found' });
   const columns = JSON.parse(meta.columns);
-  const fields = columns.filter(c => req.body[c] !== undefined);
+  const fields = columns.filter(c => req.body[c.name] !== undefined);
   if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
   const placeholders = fields.map(() => '?').join(', ');
-  const values = fields.map(f => req.body[f]);
+  const values = fields.map(f => req.body[f.name]);
   try {
-    const info = db.prepare(`INSERT INTO ${req.params.table} (user_id, ${fields.join(', ')}) VALUES (?, ${placeholders})`).run(req.user.id, ...values);
+    const info = db.prepare(`INSERT INTO ${req.params.table} (user_id, ${fields.map(f => f.name).join(', ')}) VALUES (?, ${placeholders})`).run(req.user.id, ...values);
     const newRow = { id: info.lastInsertRowid, user_id: req.user.id };
-    fields.forEach((f, i) => newRow[f] = values[i]);
+    fields.forEach((f, i) => newRow[f.name] = values[i]);
     broadcastChange('insert', null, newRow, req.params.table);
     triggerWebhooks('insert', null, newRow, req.params.table);
     res.status(201).json(newRow);
@@ -164,8 +199,7 @@ app.delete('/api/data/:table/:id', authMiddleware, (req, res) => {
 
 // Webhooks
 app.get('/api/webhooks/:table', authMiddleware, (req, res) => {
-  const hooks = db.prepare('SELECT id, url, event FROM _webhooks WHERE table_name = ?').all(req.params.table);
-  res.json(hooks);
+  res.json(db.prepare('SELECT id, url, event FROM _webhooks WHERE table_name = ?').all(req.params.table));
 });
 app.post('/api/webhooks/:table', authMiddleware, (req, res) => {
   const { url, event } = req.body;
@@ -208,7 +242,6 @@ function triggerWebhooks(event, oldRecord, newRecord, table) {
   });
 }
 
-// Start
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://0.0.0.0:${PORT}`);
 });
