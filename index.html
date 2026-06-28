@@ -3,66 +3,157 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Own DB App</title>
+  <title>My Database Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .sidebar { min-width: 200px; max-width: 250px; }
+    th { cursor: pointer; user-select: none; }
+    th:hover { background-color: #f3f4f6; }
+    .selected { border: 2px solid #3b82f6; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+    .modal.active { display: flex; }
+  </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-  <div id="app" class="w-full max-w-2xl bg-white rounded-xl shadow-2xl p-6">
+<body class="bg-gray-50 h-screen flex">
 
-    <!-- Auth Container -->
-    <div id="auth-container" class="space-y-4">
-      <h1 class="text-2xl font-bold text-center">Welcome</h1>
-      <input type="email" id="email" placeholder="Email" class="w-full border p-2 rounded" />
-      <input type="password" id="password" placeholder="Password" class="w-full border p-2 rounded" />
-      <div class="flex gap-2">
-        <button onclick="signUp()" class="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600">Sign Up</button>
-        <button onclick="signIn()" class="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600">Sign In</button>
+  <!-- Auth Container (hidden after login) -->
+  <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white rounded-lg shadow-lg space-y-4">
+    <h1 class="text-2xl font-bold text-center">Welcome</h1>
+    <input type="email" id="email" placeholder="Email" class="w-full border p-2 rounded" />
+    <input type="password" id="password" placeholder="Password" class="w-full border p-2 rounded" />
+    <div class="flex gap-2">
+      <button onclick="signUp()" class="flex-1 bg-green-500 text-white py-2 rounded hover:bg-green-600">Sign Up</button>
+      <button onclick="signIn()" class="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600">Sign In</button>
+    </div>
+    <p id="auth-message" class="text-sm text-red-600 text-center"></p>
+  </div>
+
+  <!-- Main App (hidden until authenticated) -->
+  <div id="app-container" class="flex flex-1 h-screen hidden">
+    <!-- Sidebar -->
+    <div class="sidebar bg-white border-r p-4 flex flex-col">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="font-bold text-lg">Tables</h2>
+        <button onclick="openCreateTableModal()" class="text-blue-600 text-2xl leading-none">+</button>
       </div>
-      <p id="auth-message" class="text-sm text-red-600 text-center"></p>
+      <ul id="table-list" class="space-y-1 flex-1 overflow-y-auto"></ul>
+      <button onclick="signOut()" class="mt-4 bg-gray-200 py-2 rounded hover:bg-gray-300">Logout</button>
     </div>
 
-    <!-- Main App (hidden until authenticated) -->
-    <div id="main-container" class="hidden space-y-6">
-      <div class="flex justify-between items-center">
-        <h2 class="text-xl font-semibold">Your Items</h2>
-        <button onclick="signOut()" class="bg-gray-300 px-4 py-1 rounded hover:bg-gray-400">Logout</button>
+    <!-- Main area -->
+    <div class="flex-1 flex flex-col">
+      <!-- Top bar -->
+      <div class="bg-white border-b p-4 flex justify-between items-center">
+        <h1 id="current-table-name" class="text-xl font-semibold">Select a table</h1>
+        <div class="flex gap-3">
+          <button onclick="openPrivacyModal()" class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200">Privacy</button>
+          <button onclick="openApiModal()" class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded hover:bg-indigo-200">API</button>
+          <button onclick="openWebhooksModal()" class="px-3 py-1 bg-green-100 text-green-800 rounded hover:bg-green-200">Webhooks</button>
+          <button onclick="exportCSV()" class="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200">Export CSV</button>
+        </div>
       </div>
 
-      <div class="flex gap-2">
-        <input type="text" id="new-title" placeholder="New item title" class="flex-1 border p-2 rounded" />
-        <button onclick="addItem()" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">Add</button>
+      <!-- Table view -->
+      <div class="flex-1 overflow-auto p-4">
+        <div id="add-row" class="flex gap-2 mb-4 hidden"></div>
+        <table class="w-full bg-white rounded shadow hidden" id="data-table">
+          <thead id="table-head" class="bg-gray-100"></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+        <div id="no-table-selected" class="text-gray-400 mt-8 text-center">Select a table from the left to view its data.</div>
       </div>
 
-      <ul id="items-list" class="space-y-2"></ul>
-
-      <!-- Real‑Time Change Log (old → new) -->
-      <div class="border-t pt-4">
-        <h3 class="font-semibold mb-2">Real‑Time Change Log (old → new)</h3>
-        <div id="change-log" class="bg-gray-50 p-3 rounded max-h-48 overflow-y-auto text-sm space-y-1"></div>
+      <!-- Real-time log -->
+      <div class="border-t bg-white p-3 max-h-32 overflow-y-auto text-sm">
+        <h3 class="font-semibold mb-1">Real‑Time Change Log</h3>
+        <div id="change-log"></div>
       </div>
     </div>
   </div>
 
+  <!-- Modals -->
+  <!-- Create Table Modal -->
+  <div id="create-table-modal" class="modal">
+    <div class="bg-white p-6 rounded-lg w-96">
+      <h3 class="text-lg font-bold mb-3">Create New Table</h3>
+      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 mb-2 rounded" />
+      <div id="new-columns" class="space-y-1 mb-2"></div>
+      <button onclick="addColumnField()" class="text-blue-500 text-sm">+ Add column</button>
+      <div class="flex gap-2 mt-4">
+        <button onclick="createTable()" class="bg-blue-500 text-white px-4 py-2 rounded">Create</button>
+        <button onclick="closeModal('create-table-modal')" class="bg-gray-300 px-4 py-2 rounded">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Modal -->
+  <div id="privacy-modal" class="modal">
+    <div class="bg-white p-6 rounded-lg w-96">
+      <h3 class="text-lg font-bold mb-3">Privacy Rules (<span id="privacy-table-name"></span>)</h3>
+      <label class="block text-sm">Read rule (e.g., user_id = @user_id)</label>
+      <input id="privacy-read" class="w-full border p-2 mb-2 rounded" />
+      <label class="block text-sm">Write rule</label>
+      <input id="privacy-write" class="w-full border p-2 mb-2 rounded" />
+      <div class="flex gap-2 mt-4">
+        <button onclick="savePrivacy()" class="bg-blue-500 text-white px-4 py-2 rounded">Save</button>
+        <button onclick="closeModal('privacy-modal')" class="bg-gray-300 px-4 py-2 rounded">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Modal -->
+  <div id="api-modal" class="modal">
+    <div class="bg-white p-6 rounded-lg w-96">
+      <h3 class="text-lg font-bold mb-3">API Endpoints (<span id="api-table-name"></span>)</h3>
+      <div class="space-y-2 text-sm">
+        <p><strong>GET</strong> /api/data/<span class="table-name-inline"></span></p>
+        <p><strong>POST</strong> /api/data/<span class="table-name-inline"></span> (body: fields)</p>
+        <p><strong>DELETE</strong> /api/data/<span class="table-name-inline"></span>/:id</p>
+      </div>
+      <button onclick="closeModal('api-modal')" class="mt-4 bg-gray-300 px-4 py-2 rounded">Close</button>
+    </div>
+  </div>
+
+  <!-- Webhooks Modal -->
+  <div id="webhooks-modal" class="modal">
+    <div class="bg-white p-6 rounded-lg w-96 max-h-96 overflow-y-auto">
+      <h3 class="text-lg font-bold mb-3">Webhooks (<span id="webhooks-table-name"></span>)</h3>
+      <div class="flex gap-2 mb-3">
+        <input id="webhook-url" placeholder="URL" class="flex-1 border p-1 rounded text-sm" />
+        <select id="webhook-event" class="border p-1 rounded text-sm">
+          <option value="insert">insert</option>
+          <option value="update">update</option>
+          <option value="delete">delete</option>
+        </select>
+        <button onclick="addWebhook()" class="bg-green-500 text-white px-3 py-1 rounded text-sm">Add</button>
+      </div>
+      <ul id="webhook-list" class="space-y-1 text-sm"></ul>
+      <button onclick="closeModal('webhooks-modal')" class="mt-3 bg-gray-300 px-4 py-2 rounded">Close</button>
+    </div>
+  </div>
+
   <script>
-    // Auto‑detects the server URL – no configuration needed
     const API_BASE = window.location.origin;
     let token = localStorage.getItem('token');
     let ws = null;
-    const itemsCache = new Map();
+    let selectedTable = null;
+    let currentColumns = [];
+    let currentRows = [];
 
+    // -------- Auth ----------
     function showAuthMessage(msg) { document.getElementById('auth-message').textContent = msg; }
     function showAuth() {
       document.getElementById('auth-container').classList.remove('hidden');
-      document.getElementById('main-container').classList.add('hidden');
+      document.getElementById('app-container').classList.add('hidden');
     }
     function showApp() {
       document.getElementById('auth-container').classList.add('hidden');
-      document.getElementById('main-container').classList.remove('hidden');
-      loadItems();
+      document.getElementById('app-container').classList.remove('hidden');
+      loadTables();
       connectWebSocket();
     }
 
-    // -------- Auth ----------
     async function signUp() {
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
@@ -76,9 +167,7 @@
         localStorage.setItem('token', data.token);
         token = data.token;
         showApp();
-      } else {
-        showAuthMessage(data.error);
-      }
+      } else showAuthMessage(data.error);
     }
 
     async function signIn() {
@@ -94,116 +183,270 @@
         localStorage.setItem('token', data.token);
         token = data.token;
         showApp();
-      } else {
-        showAuthMessage(data.error);
-      }
+      } else showAuthMessage(data.error);
     }
 
     function signOut() {
       localStorage.removeItem('token');
       token = null;
       if (ws) ws.close();
-      itemsCache.clear();
       showAuth();
     }
 
-    // -------- Items CRUD ----------
-    async function loadItems() {
-      const res = await fetch(`${API_BASE}/api/items`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const items = await res.json();
-      itemsCache.clear();
-      items.forEach(item => itemsCache.set(item.id, item));
-      renderItems(items);
-    }
-
-    function renderItems(items) {
-      const list = document.getElementById('items-list');
-      list.innerHTML = items.map(item => `
-        <li class="flex justify-between items-center bg-gray-50 p-3 rounded">
-          <span>${escapeHtml(item.title)}</span>
-          <button onclick="deleteItem(${item.id})" class="text-red-500 hover:underline">Delete</button>
+    // -------- Tables management ----------
+    async function loadTables() {
+      const res = await fetch(`${API_BASE}/api/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const tables = await res.json();
+      const list = document.getElementById('table-list');
+      list.innerHTML = tables.map(t => `
+        <li class="p-2 rounded hover:bg-gray-100 cursor-pointer ${selectedTable === t.name ? 'bg-blue-50 font-bold' : ''}" 
+            onclick="selectTable('${t.name}')">
+          ${t.name}
         </li>
       `).join('');
     }
 
-    async function addItem() {
-      const title = document.getElementById('new-title').value.trim();
-      if (!title) return;
-      const res = await fetch(`${API_BASE}/api/items`, {
+    async function selectTable(name) {
+      selectedTable = name;
+      document.getElementById('current-table-name').textContent = name;
+      document.getElementById('no-table-selected').classList.add('hidden');
+      document.getElementById('data-table').classList.remove('hidden');
+      document.getElementById('add-row').classList.remove('hidden');
+
+      // Fetch columns and rows
+      const tablesRes = await fetch(`${API_BASE}/api/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const tables = await tablesRes.json();
+      const tableMeta = tables.find(t => t.name === name);
+      currentColumns = tableMeta ? tableMeta.columns : [];
+
+      const rowsRes = await fetch(`${API_BASE}/api/data/${name}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      currentRows = await rowsRes.json();
+
+      renderTable();
+      renderAddRowForm();
+      loadTables(); // refresh sidebar selection
+    }
+
+    function renderTable() {
+      const thead = document.getElementById('table-head');
+      const tbody = document.getElementById('table-body');
+      if (!selectedTable) return;
+      const allCols = ['id', ...currentColumns];
+      thead.innerHTML = `<tr>${allCols.map(c => `<th class="p-2 text-left" onclick="sortTable('${c}')">${c} ↕</th>`).join('')}<th class="p-2">Actions</th></tr>`;
+      tbody.innerHTML = currentRows.map(row => `
+        <tr class="border-t">
+          ${allCols.map(c => `<td class="p-2">${row[c] || ''}</td>`).join('')}
+          <td class="p-2"><button onclick="deleteRow('${row.id}')" class="text-red-500 hover:underline">Delete</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAddRowForm() {
+      const formDiv = document.getElementById('add-row');
+      formDiv.innerHTML = currentColumns.map(c => `
+        <input placeholder="${c}" id="add-${c}" class="border p-1 rounded flex-1" />
+      `).join('') + `<button onclick="addRow()" class="bg-indigo-500 text-white px-3 py-1 rounded">Add</button>`;
+    }
+
+    // -------- Sorting --------
+    let sortColumn = null;
+    let sortAsc = true;
+
+    function sortTable(col) {
+      if (sortColumn === col) sortAsc = !sortAsc;
+      else { sortColumn = col; sortAsc = true; }
+      currentRows.sort((a, b) => {
+        const valA = a[col] || '', valB = b[col] || '';
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      renderTable();
+    }
+
+    // -------- CRUD --------
+    async function addRow() {
+      const body = {};
+      currentColumns.forEach(c => {
+        const el = document.getElementById(`add-${c}`);
+        if (el) body[c] = el.value;
+      });
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ title })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
       });
       if (res.ok) {
-        document.getElementById('new-title').value = '';
+        selectTable(selectedTable); // refresh
       } else {
-        const data = await res.json();
-        alert(data.error);
+        alert('Add failed');
       }
     }
 
-    async function deleteItem(id) {
-      const res = await fetch(`${API_BASE}/api/items/${id}`, {
+    async function deleteRow(id) {
+      if (!confirm('Delete?')) return;
+      await fetch(`${API_BASE}/api/data/${selectedTable}/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) alert('Delete failed');
+      selectTable(selectedTable);
     }
 
-    // -------- Real‑Time (WebSocket) ----------
+    // -------- Modals --------
+    function openCreateTableModal() {
+      document.getElementById('new-table-name').value = '';
+      document.getElementById('new-columns').innerHTML = '';
+      addColumnField();
+      document.getElementById('create-table-modal').classList.add('active');
+    }
+
+    function addColumnField() {
+      const div = document.getElementById('new-columns');
+      div.innerHTML += `<input placeholder="Column name" class="w-full border p-1 rounded mb-1 column-input" />`;
+    }
+
+    async function createTable() {
+      const name = document.getElementById('new-table-name').value.trim();
+      const colInputs = document.querySelectorAll('.column-input');
+      const cols = Array.from(colInputs).map(el => el.value.trim()).filter(Boolean);
+      if (!name || cols.length === 0) return alert('Name and at least one column required');
+      const res = await fetch(`${API_BASE}/api/tables`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name, columns: cols })
+      });
+      if (res.ok) {
+        closeModal('create-table-modal');
+        loadTables();
+      } else {
+        alert('Creation failed');
+      }
+    }
+
+    // Privacy
+    async function openPrivacyModal() {
+      if (!selectedTable) return;
+      const tablesRes = await fetch(`${API_BASE}/api/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const tables = await tablesRes.json();
+      const meta = tables.find(t => t.name === selectedTable);
+      document.getElementById('privacy-read').value = meta.privacy.read || '';
+      document.getElementById('privacy-write').value = meta.privacy.write || '';
+      document.getElementById('privacy-table-name').textContent = selectedTable;
+      document.getElementById('privacy-modal').classList.add('active');
+    }
+
+    async function savePrivacy() {
+      const read = document.getElementById('privacy-read').value;
+      const write = document.getElementById('privacy-write').value;
+      await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ read, write })
+      });
+      closeModal('privacy-modal');
+    }
+
+    // API
+    function openApiModal() {
+      if (!selectedTable) return;
+      document.getElementById('api-table-name').textContent = selectedTable;
+      document.querySelectorAll('.table-name-inline').forEach(el => el.textContent = selectedTable);
+      document.getElementById('api-modal').classList.add('active');
+    }
+
+    // Webhooks
+    async function openWebhooksModal() {
+      if (!selectedTable) return;
+      document.getElementById('webhooks-table-name').textContent = selectedTable;
+      document.getElementById('webhook-url').value = '';
+      await loadWebhooks();
+      document.getElementById('webhooks-modal').classList.add('active');
+    }
+
+    async function loadWebhooks() {
+      const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const hooks = await res.json();
+      document.getElementById('webhook-list').innerHTML = hooks.map(h => `
+        <li class="flex justify-between items-center border-b py-1">
+          <span>${h.event}: ${h.url}</span>
+          <button onclick="deleteWebhook(${h.id})" class="text-red-500 text-xs">X</button>
+        </li>
+      `).join('');
+    }
+
+    async function addWebhook() {
+      const url = document.getElementById('webhook-url').value.trim();
+      const event = document.getElementById('webhook-event').value;
+      if (!url) return;
+      await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ url, event })
+      });
+      loadWebhooks();
+      document.getElementById('webhook-url').value = '';
+    }
+
+    async function deleteWebhook(id) {
+      await fetch(`${API_BASE}/api/webhooks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      loadWebhooks();
+    }
+
+    // Export CSV
+    function exportCSV() {
+      if (!selectedTable || currentRows.length === 0) return;
+      const cols = ['id', ...currentColumns];
+      let csv = cols.join(',') + '\n';
+      currentRows.forEach(row => {
+        csv += cols.map(c => row[c] || '').join(',') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = selectedTable + '.csv';
+      a.click();
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // -------- Real-time WebSocket --------
     function connectWebSocket() {
       if (ws) ws.close();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${window.location.host}`);
-
       ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token }));
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'item_change') handleRealtimeChange(msg);
+        if (msg.type === 'item_change') {
+          const logDiv = document.getElementById('change-log');
+          let message = `[${msg.table}] ${msg.event}: `;
+          if (msg.event === 'update') message += `old=${JSON.stringify(msg.old)} → new=${JSON.stringify(msg.new)}`;
+          else if (msg.event === 'delete') message += `old=${JSON.stringify(msg.old)}`;
+          else message += `new=${JSON.stringify(msg.new)}`;
+          const p = document.createElement('p');
+          p.className = 'border-b pb-1';
+          p.textContent = message;
+          logDiv.prepend(p);
+          if (msg.table === selectedTable) selectTable(selectedTable); // auto-refresh
+        }
       };
       ws.onclose = () => setTimeout(connectWebSocket, 3000);
     }
 
-    function handleRealtimeChange({ event, old: oldRecord, new: newRecord }) {
-      const logDiv = document.getElementById('change-log');
-      let message = '';
-
-      switch (event) {
-        case 'insert':
-          message = `INSERT: New = ${JSON.stringify(newRecord)}`;
-          itemsCache.set(newRecord.id, newRecord);
-          break;
-        case 'update':
-          message = `UPDATE: Old = ${JSON.stringify(oldRecord)} → New = ${JSON.stringify(newRecord)}`;
-          itemsCache.set(newRecord.id, newRecord);
-          break;
-        case 'delete':
-          message = `DELETE: Old = ${JSON.stringify(oldRecord)}`;
-          itemsCache.delete(oldRecord.id);
-          break;
-      }
-
-      const p = document.createElement('p');
-      p.className = 'border-b pb-1';
-      p.textContent = message;
-      logDiv.prepend(p);
-
-      renderItems(Array.from(itemsCache.values()));
-    }
-
-    function escapeHtml(text) {
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    // -------- Init ----------
+    // Init
     window.addEventListener('load', () => {
-      if (token) showApp(); else showAuth();
+      if (localStorage.getItem('token')) {
+        token = localStorage.getItem('token');
+        showApp();
+      } else showAuth();
     });
+
+    // Close modals on outside click
+    window.onclick = (e) => {
+      if (e.target.classList.contains('modal')) e.target.classList.remove('active');
+    }
   </script>
 </body>
 </html>
