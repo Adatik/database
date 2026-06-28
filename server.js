@@ -19,7 +19,6 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-random-string';
 const DB_PATH = process.env.DB_PATH || './data.db';
 const SALT_ROUNDS = 10;
 
-// Create directory for DB_PATH if needed
 const dbDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
@@ -46,7 +45,6 @@ db.exec(`
   );
 `);
 
-// Ensure default 'items' table exists
 const existing = db.prepare("SELECT name FROM _tables WHERE name = 'items'").get();
 if (!existing) {
   db.prepare("INSERT INTO _tables (name, columns, privacy) VALUES (?, ?, ?)").run('items', '[{"name":"title","type":"string"}]', '{}');
@@ -106,13 +104,12 @@ app.get('/api/tables', authMiddleware, (req, res) => {
 });
 
 app.post('/api/tables', authMiddleware, (req, res) => {
-  const { name, columns } = req.body;   // columns: [{name, type}] 
+  const { name, columns } = req.body;
   if (!name || !Array.isArray(columns) || columns.length === 0)
     return res.status(400).json({ error: 'Name and at least one column required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
   if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
 
-  // Build SQL column definitions
   const colDefs = columns.map(c => {
     const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '');
     const type = mapType(c.type);
@@ -128,13 +125,45 @@ app.post('/api/tables', authMiddleware, (req, res) => {
   }
 });
 
-app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
-  const { read, write } = req.body;
-  db.prepare('UPDATE _tables SET privacy = ? WHERE name = ?').run(JSON.stringify({ read: read || '', write: write || '' }), req.params.name);
+// NEW: Delete table
+app.delete('/api/tables/:name', authMiddleware, (req, res) => {
+  const name = req.params.name;
+  if (!db.prepare('SELECT name FROM _tables WHERE name = ?').get(name))
+    return res.status(404).json({ error: 'Table not found' });
+  db.prepare(`DROP TABLE IF EXISTS ${name}`).run();
+  db.prepare('DELETE FROM _tables WHERE name = ?').run(name);
+  db.prepare('DELETE FROM _webhooks WHERE table_name = ?').run(name);
   res.json({ success: true });
 });
 
-// Helper to map UI type to SQLite affinity
+// NEW: Rename table
+app.put('/api/tables/:name', authMiddleware, (req, res) => {
+  const oldName = req.params.name;
+  const { newName } = req.body;
+  if (!newName) return res.status(400).json({ error: 'New name required' });
+  const safeNew = newName.replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeNew) return res.status(400).json({ error: 'Invalid name' });
+  if (db.prepare('SELECT name FROM _tables WHERE name = ?').get(safeNew))
+    return res.status(400).json({ error: 'Table name already exists' });
+
+  db.prepare('UPDATE _tables SET name = ? WHERE name = ?').run(safeNew, oldName);
+  try {
+    db.prepare(`ALTER TABLE ${oldName} RENAME TO ${safeNew}`).run();
+  } catch (e) {
+    db.prepare('UPDATE _tables SET name = ? WHERE name = ?').run(oldName, safeNew); // rollback
+    return res.status(400).json({ error: e.message });
+  }
+  db.prepare('UPDATE _webhooks SET table_name = ? WHERE table_name = ?').run(safeNew, oldName);
+  res.json({ name: safeNew });
+});
+
+app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
+  const { read, write, delete: del } = req.body;
+  const privacy = JSON.stringify({ read: read || '', write: write || '', delete: del || '' });
+  db.prepare('UPDATE _tables SET privacy = ? WHERE name = ?').run(privacy, req.params.name);
+  res.json({ success: true });
+});
+
 function mapType(type) {
   switch (type) {
     case 'int':
@@ -143,11 +172,9 @@ function mapType(type) {
     case 'float':
     case 'number': return 'REAL';
     case 'boolean':
-    case 'bool': return 'INTEGER';  // SQLite no boolean
+    case 'bool': return 'INTEGER';
     case 'date':
     case 'datetime': return 'TEXT';
-    case 'text':
-    case 'string':
     default: return 'TEXT';
   }
 }
@@ -184,20 +211,54 @@ app.post('/api/data/:table', authMiddleware, (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+app.put('/api/data/:table/:id', authMiddleware, (req, res) => {
+  const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
+  if (!meta) return res.status(404).json({ error: 'Table not found' });
+  const columns = JSON.parse(meta.columns);
+  const privacy = JSON.parse(meta.privacy || '{}');
+
+  if (privacy.write) {
+    const rule = privacy.write.replace(/@user_id/g, req.user.id);
+    if (!db.prepare(`SELECT 1 FROM ${req.params.table} WHERE id = ? AND ${rule}`).get(req.params.id))
+      return res.status(403).json({ error: 'Forbidden by write rule' });
+  }
+
+  const oldRow = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
+  if (!oldRow) return res.status(404).json({ error: 'Row not found' });
+
+  const fields = columns.filter(c => req.body[c.name] !== undefined);
+  if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+  const setClauses = fields.map(f => `${f.name} = ?`).join(', ');
+  const values = fields.map(f => req.body[f.name]);
+
+  try {
+    db.prepare(`UPDATE ${req.params.table} SET ${setClauses} WHERE id = ?`).run(...values, req.params.id);
+    const newRow = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
+    broadcastChange('update', oldRow, newRow, req.params.table);
+    triggerWebhooks('update', oldRow, newRow, req.params.table);
+    res.json(newRow);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
 app.delete('/api/data/:table/:id', authMiddleware, (req, res) => {
   const meta = db.prepare('SELECT privacy FROM _tables WHERE name = ?').get(req.params.table);
   if (!meta) return res.status(404).json({ error: 'Table not found' });
   const row = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Row not found' });
   const privacy = JSON.parse(meta.privacy || '{}');
-  if (privacy.write && row.user_id !== req.user.id) return res.status(403).json({ error: 'Not owner' });
+  if (privacy.delete) {
+    const rule = privacy.delete.replace(/@user_id/g, req.user.id);
+    if (!db.prepare(`SELECT 1 FROM ${req.params.table} WHERE id = ? AND ${rule}`).get(req.params.id))
+      return res.status(403).json({ error: 'Forbidden by delete rule' });
+  }
   db.prepare(`DELETE FROM ${req.params.table} WHERE id = ?`).run(req.params.id);
   broadcastChange('delete', row, null, req.params.table);
   triggerWebhooks('delete', row, null, req.params.table);
   res.json({ success: true });
 });
 
-// Webhooks
+// Webhooks (unchanged)
 app.get('/api/webhooks/:table', authMiddleware, (req, res) => {
   res.json(db.prepare('SELECT id, url, event FROM _webhooks WHERE table_name = ?').all(req.params.table));
 });
