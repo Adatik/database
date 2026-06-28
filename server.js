@@ -5,9 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const axios = require('axios');
-const Database = require('better-sqlite3');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
@@ -16,52 +14,67 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me-to-a-random-string';
-const DB_PATH = process.env.DB_PATH || './data.db';
 const SALT_ROUNDS = 10;
 
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS _tables (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    columns TEXT NOT NULL,
-    privacy TEXT DEFAULT '{}',
-    sort_order INTEGER DEFAULT 0
-  );
-  CREATE TABLE IF NOT EXISTS _webhooks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    table_name TEXT NOT NULL,
-    url TEXT NOT NULL,
-    event TEXT NOT NULL CHECK(event IN ('insert','update','delete'))
-  );
-`);
-
-// Ensure default 'items' table exists
-if (!db.prepare("SELECT name FROM _tables WHERE name = 'items'").get()) {
-  db.prepare("INSERT INTO _tables (name, columns, privacy, sort_order) VALUES (?, ?, ?, ?)").run('items', '[{"name":"title","type":"string"}]', '{}', 0);
-  db.exec(`CREATE TABLE items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );`);
-}
+// PostgreSQL connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/mydb',
+  max: 20,                       // max connections in pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// Init database tables on startup
+async function initDb() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS _tables (
+        id SERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        columns TEXT NOT NULL,
+        privacy TEXT DEFAULT '{}',
+        sort_order INTEGER DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS _webhooks (
+        id SERIAL PRIMARY KEY,
+        table_name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        event TEXT NOT NULL CHECK(event IN ('insert','update','delete'))
+      );
+    `);
+
+    // Ensure default 'items' table exists
+    const exists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
+    if (exists.rowCount === 0) {
+      await client.query("INSERT INTO _tables (name, columns, privacy, sort_order) VALUES ('items', '[{\"name\":\"title\",\"type\":\"string\"}]', '{}', 0)");
+      await client.query(`CREATE TABLE items (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        title TEXT NOT NULL
+      )`);
+    }
+  } finally {
+    client.release();
+  }
+}
+
+initDb().catch(err => {
+  console.error('Database initialization failed:', err);
+  process.exit(1);
+});
+
+// Auth middleware (unchanged)
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer '))
@@ -74,7 +87,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// ---- Operator mapping ----
+// Operator mapping (same)
 const opMap = {
   'eq': '=',
   'neq': '<>',
@@ -88,287 +101,336 @@ const opMap = {
 
 function applyRule(rule, userId) {
   if (!rule) return '';
-  let sql = rule.replace(/@user_id/g, userId);
+  let sql = rule.replace(/@user_id/g, '$1');   // use $1 as placeholder
   const parts = sql.split(' ');
   if (parts.length >= 3 && opMap[parts[1]]) {
     parts[1] = opMap[parts[1]];
     if (parts[1] === 'LIKE' || parts[1] === 'NOT LIKE') {
-      parts[2] = `'%${parts[2]}%'`;
+      parts[2] = `'%${parts[2].replace(/'/g, '')}%'`; // keep simple
     }
     sql = parts.join(' ');
   }
-  return sql;
+  return { sql, params: [userId] };
 }
 
-function mapType(type) {
-  switch (type) {
-    case 'int': case 'int8': case 'integer': return 'INTEGER';
-    case 'float': case 'number': return 'REAL';
-    case 'boolean': case 'bool': return 'INTEGER';
-    case 'date': case 'datetime': return 'TEXT';
-    default: return 'TEXT';
-  }
-}
-
-// Auth routes
+// Auth routes (unchanged, but use pool)
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
   try {
-    const info = db.prepare('INSERT INTO users (email, password) VALUES (?, ?)').run(email, hash);
-    const user = { id: info.lastInsertRowid, email };
+    const result = await pool.query(
+      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email',
+      [email, hash]
+    );
+    const user = result.rows[0];
     res.json({ user, token: jwt.sign(user, JWT_SECRET, { expiresIn: '7d' }) });
   } catch { res.status(400).json({ error: 'Email already exists' }); }
 });
 
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+  const user = result.rows[0];
   if (!user || !(await bcrypt.compare(password, user.password)))
     return res.status(400).json({ error: 'Invalid credentials' });
   res.json({ user: { id: user.id, email: user.email }, token: jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' }) });
 });
 
-// Table management
-app.get('/api/tables', authMiddleware, (req, res) => {
-  const tables = db.prepare('SELECT name, columns, privacy, sort_order FROM _tables ORDER BY sort_order, id').all();
-  res.json(tables.map(t => ({
-    name: t.name,
-    columns: JSON.parse(t.columns),
-    privacy: JSON.parse(t.privacy || '{}'),
-    sort_order: t.sort_order
-  })));
+// Table management (use pool, parameterised)
+app.get('/api/tables', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT name, columns, privacy, sort_order FROM _tables ORDER BY sort_order, id');
+    res.json(result.rows.map(t => ({
+      name: t.name,
+      columns: JSON.parse(t.columns),
+      privacy: JSON.parse(t.privacy || '{}'),
+      sort_order: t.sort_order
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/api/tables', authMiddleware, (req, res) => {
+app.post('/api/tables', authMiddleware, async (req, res) => {
   const { name, columns } = req.body;
   if (!name || !Array.isArray(columns) || columns.length === 0)
     return res.status(400).json({ error: 'Name and at least one column required' });
-  const safeName = name.replace(/[^a-zA-Z0-9_]/g, '');
+  const safeName = name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
 
   const colDefs = columns.map(c => {
-    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '');
+    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
     const type = mapType(c.type);
-    return `${colName} ${type}`;
+    return `"${colName}" ${type}`;
   }).join(', ');
 
   try {
-    db.prepare(`CREATE TABLE ${safeName} (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, ${colDefs})`).run();
-    const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM _tables').get().max || 0;
-    db.prepare('INSERT INTO _tables (name, columns, privacy, sort_order) VALUES (?, ?, ?, ?)').run(safeName, JSON.stringify(columns), '{}', maxOrder + 1);
+    await pool.query(`CREATE TABLE "${safeName}" (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, ${colDefs})`);
+    const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) as max FROM _tables');
+    const nextOrder = maxOrder.rows[0].max + 1;
+    await pool.query('INSERT INTO _tables (name, columns, privacy, sort_order) VALUES ($1, $2, $3, $4)',
+      [safeName, JSON.stringify(columns), '{}', nextOrder]);
     res.status(201).json({ name: safeName, columns });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/tables/order', authMiddleware, (req, res) => {
+app.put('/api/tables/order', authMiddleware, async (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) return res.status(400).json({ error: 'Order array required' });
-  const stmt = db.prepare('UPDATE _tables SET sort_order = ? WHERE name = ?');
-  const transaction = db.transaction(() => {
-    order.forEach((name, idx) => stmt.run(idx, name));
-  });
-  transaction();
-  res.json({ success: true });
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < order.length; i++) {
+        await client.query('UPDATE _tables SET sort_order = $1 WHERE name = $2', [i, order[i]]);
+      }
+      await client.query('COMMIT');
+      res.json({ success: true });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally { client.release(); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete('/api/tables/:name', authMiddleware, (req, res) => {
+app.delete('/api/tables/:name', authMiddleware, async (req, res) => {
   const name = req.params.name;
-  if (!db.prepare('SELECT name FROM _tables WHERE name = ?').get(name))
-    return res.status(404).json({ error: 'Table not found' });
-  db.prepare(`DROP TABLE IF EXISTS ${name}`).run();
-  db.prepare('DELETE FROM _tables WHERE name = ?').run(name);
-  db.prepare('DELETE FROM _webhooks WHERE table_name = ?').run(name);
-  res.json({ success: true });
+  try {
+    const exists = await pool.query('SELECT name FROM _tables WHERE name = $1', [name]);
+    if (exists.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+    await pool.query(`DROP TABLE IF EXISTS "${name}"`);
+    await pool.query('DELETE FROM _tables WHERE name = $1', [name]);
+    await pool.query('DELETE FROM _webhooks WHERE table_name = $1', [name]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/tables/:name', authMiddleware, (req, res) => {
+app.put('/api/tables/:name', authMiddleware, async (req, res) => {
   const oldName = req.params.name;
   const { newName } = req.body;
   if (!newName) return res.status(400).json({ error: 'New name required' });
-  const safeNew = newName.replace(/[^a-zA-Z0-9_]/g, '');
+  const safeNew = newName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   if (!safeNew) return res.status(400).json({ error: 'Invalid name' });
-  if (db.prepare('SELECT name FROM _tables WHERE name = ?').get(safeNew))
-    return res.status(400).json({ error: 'Table name already exists' });
-
-  db.prepare('UPDATE _tables SET name = ? WHERE name = ?').run(safeNew, oldName);
   try {
-    db.prepare(`ALTER TABLE ${oldName} RENAME TO ${safeNew}`).run();
-  } catch (e) {
-    db.prepare('UPDATE _tables SET name = ? WHERE name = ?').run(oldName, safeNew);
-    return res.status(400).json({ error: e.message });
-  }
-  db.prepare('UPDATE _webhooks SET table_name = ? WHERE table_name = ?').run(safeNew, oldName);
-  res.json({ name: safeNew });
-});
+    const exists = await pool.query('SELECT name FROM _tables WHERE name = $1', [safeNew]);
+    if (exists.rowCount > 0) return res.status(400).json({ error: 'Table name already exists' });
 
-app.put('/api/tables/:name/privacy', authMiddleware, (req, res) => {
-  const { read, write, update, delete: del } = req.body;
-  const privacy = JSON.stringify({ read: read || '', write: write || '', update: update || '', delete: del || '' });
-  db.prepare('UPDATE _tables SET privacy = ? WHERE name = ?').run(privacy, req.params.name);
-  res.json({ success: true });
-});
-
-app.put('/api/tables/:name/schema', authMiddleware, (req, res) => {
-  const oldName = req.params.name;
-  const { columns } = req.body;
-  if (!Array.isArray(columns)) return res.status(400).json({ error: 'columns array required' });
-  const table = db.prepare('SELECT * FROM _tables WHERE name = ?').get(oldName);
-  if (!table) return res.status(404).json({ error: 'Table not found' });
-
-  const oldCols = JSON.parse(table.columns);
-  const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
-  newCols.forEach(c => {
-    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '');
-    const type = mapType(c.type);
-    try {
-      db.prepare(`ALTER TABLE ${oldName} ADD COLUMN ${colName} ${type}`).run();
-    } catch (err) { /* column may already exist */ }
-  });
-  db.prepare('UPDATE _tables SET columns = ? WHERE name = ?').run(JSON.stringify(columns), oldName);
-  res.json({ name: oldName, columns });
-});
-
-// Dynamic CRUD
-app.get('/api/data/:table', authMiddleware, (req, res) => {
-  const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
-  if (!meta) return res.status(404).json({ error: 'Table not found' });
-  const columns = JSON.parse(meta.columns).map(c => c.name);
-  const privacy = JSON.parse(meta.privacy || '{}');
-  let query = `SELECT id, user_id, ${columns.join(', ')} FROM ${req.params.table}`;
-  const conditions = [];
-  const params = [];
-
-  if (privacy.read) {
-    conditions.push(applyRule(privacy.read, req.user.id));
-  }
-
-  if (req.query.filter) {
-    Object.entries(req.query.filter).forEach(([col, val]) => {
-      if (columns.includes(col)) {
-        conditions.push(`${col} = ?`);
-        params.push(val);
-      }
-    });
-  }
-
-  if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
-
-  if (req.query.sort && columns.includes(req.query.sort)) {
-    const order = req.query.order === 'desc' ? 'DESC' : 'ASC';
-    query += ` ORDER BY ${req.query.sort} ${order}`;
-  } else {
-    query += ' ORDER BY id DESC';
-  }
-
-  if (req.query.limit) {
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
-    query += ` LIMIT ${limit} OFFSET ${offset}`;
-  }
-
-  try {
-    const rows = db.prepare(query).all(...params);
-    res.json(rows);
+    await pool.query('UPDATE _tables SET name = $1 WHERE name = $2', [safeNew, oldName]);
+    await pool.query(`ALTER TABLE "${oldName}" RENAME TO "${safeNew}"`);
+    await pool.query('UPDATE _webhooks SET table_name = $1 WHERE table_name = $2', [safeNew, oldName]);
+    res.json({ name: safeNew });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.post('/api/data/:table', authMiddleware, (req, res) => {
-  const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
-  if (!meta) return res.status(404).json({ error: 'Table not found' });
-  const columns = JSON.parse(meta.columns);
-  const privacy = JSON.parse(meta.privacy || '{}');
-  if (privacy.write) {
-    // check write rule (if any) – simple: must match the condition
-    // We'll skip full row check since row doesn't exist yet; we just allow if rule contains @user_id
-    // For simplicity, we assume if a write rule exists, the user must match it via user_id field
-    if (privacy.write.includes('@user_id')) {
-      // do nothing, user_id will be inserted
-    }
-  }
+app.put('/api/tables/:name/privacy', authMiddleware, async (req, res) => {
+  const { read, write, update, delete: del } = req.body;
+  const privacy = JSON.stringify({ read: read || '', write: write || '', update: update || '', delete: del || '' });
+  await pool.query('UPDATE _tables SET privacy = $1 WHERE name = $2', [privacy, req.params.name]);
+  res.json({ success: true });
+});
 
-  const fields = columns.filter(c => req.body[c.name] !== undefined);
-  if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
-  const placeholders = fields.map(() => '?').join(', ');
-  const values = fields.map(f => req.body[f.name]);
-
+app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
+  const oldName = req.params.name;
+  const { columns } = req.body;
+  if (!Array.isArray(columns)) return res.status(400).json({ error: 'columns array required' });
   try {
-    const info = db.prepare(`INSERT INTO ${req.params.table} (user_id, ${fields.map(f => f.name).join(', ')}) VALUES (?, ${placeholders})`).run(req.user.id, ...values);
-    const newRow = { id: info.lastInsertRowid, user_id: req.user.id };
-    fields.forEach((f, i) => newRow[f.name] = values[i]);
-    broadcastChange('insert', null, newRow, req.params.table);
-    triggerWebhooks('insert', null, newRow, req.params.table);
+    const table = await pool.query('SELECT * FROM _tables WHERE name = $1', [oldName]);
+    if (table.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+
+    const oldCols = JSON.parse(table.rows[0].columns);
+    const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
+    for (const c of newCols) {
+      const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+      const type = mapType(c.type);
+      await pool.query(`ALTER TABLE "${oldName}" ADD COLUMN "${colName}" ${type}`).catch(() => {});
+    }
+    await pool.query('UPDATE _tables SET columns = $1 WHERE name = $2', [JSON.stringify(columns), oldName]);
+    res.json({ name: oldName, columns });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+function mapType(type) {
+  switch (type) {
+    case 'int': case 'int8': case 'integer': return 'INTEGER';
+    case 'float': case 'number': return 'REAL';
+    case 'boolean': case 'bool': return 'BOOLEAN';
+    case 'date': return 'DATE';
+    case 'datetime': return 'TIMESTAMP';
+    default: return 'TEXT';
+  }
+}
+
+// Dynamic CRUD (fully parameterised, with privacy filtering)
+app.get('/api/data/:table', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  try {
+    const meta = await pool.query('SELECT columns, privacy FROM _tables WHERE name = $1', [table]);
+    if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+    const columns = JSON.parse(meta.rows[0].columns).map(c => c.name);
+    const privacy = JSON.parse(meta.rows[0].privacy || '{}');
+
+    let query = `SELECT id, user_id, ${columns.map(c => `"${c}"`).join(', ')} FROM "${table}"`;
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (privacy.read) {
+      const { sql, params: ruleParams } = applyRule(privacy.read, req.user.id);
+      // Replace $1 in rule SQL with increasing numbers
+      const replacedRule = sql.replace(/\$1/g, `$${paramIndex}`);
+      paramIndex++;
+      conditions.push(replacedRule);
+      params.push(ruleParams[0]);
+    }
+
+    // Filter query params
+    if (req.query.filter) {
+      for (const [col, val] of Object.entries(req.query.filter)) {
+        if (columns.includes(col)) {
+          conditions.push(`"${col}" = $${paramIndex++}`);
+          params.push(val);
+        }
+      }
+    }
+
+    if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
+
+    // Sort
+    if (req.query.sort && columns.includes(req.query.sort)) {
+      query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`;
+    } else {
+      query += ' ORDER BY id DESC';
+    }
+
+    // Pagination
+    if (req.query.limit) {
+      const limit = parseInt(req.query.limit) || 50;
+      const offset = parseInt(req.query.offset) || 0;
+      query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+      params.push(limit, offset);
+    }
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/data/:table', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  try {
+    const meta = await pool.query('SELECT columns, privacy FROM _tables WHERE name = $1', [table]);
+    if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+    const columns = JSON.parse(meta.rows[0].columns);
+    const privacy = JSON.parse(meta.rows[0].privacy || '{}');
+
+    // Check write rule: for now, just allow if user_id will be inserted (simplified)
+    if (privacy.write && privacy.write.includes('@user_id')) {
+      // fine, we insert user_id
+    }
+
+    const fields = columns.filter(c => req.body[c.name] !== undefined);
+    if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
+
+    const placeholders = fields.map((_, i) => `$${i + 3}`);   // $1 = user_id, $2.. = field values
+    const values = [req.user.id, ...fields.map(f => req.body[f.name])];
+    const query = `INSERT INTO "${table}" (user_id, ${fields.map(f => `"${f.name}"`).join(', ')}) VALUES ($1, ${placeholders.join(', ')}) RETURNING *`;
+
+    const result = await pool.query(query, values);
+    const newRow = result.rows[0];
+    broadcastChange('insert', null, newRow, table);
+    triggerWebhooks('insert', null, newRow, table);
     res.status(201).json(newRow);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.put('/api/data/:table/:id', authMiddleware, (req, res) => {
-  const meta = db.prepare('SELECT columns, privacy FROM _tables WHERE name = ?').get(req.params.table);
-  if (!meta) return res.status(404).json({ error: 'Table not found' });
-  const columns = JSON.parse(meta.columns);
-  const privacy = JSON.parse(meta.privacy || '{}');
-
-  // Check update rule
-  if (privacy.update) {
-    const rule = applyRule(privacy.update, req.user.id);
-    const row = db.prepare(`SELECT 1 FROM ${req.params.table} WHERE id = ? AND ${rule}`).get(req.params.id);
-    if (!row) return res.status(403).json({ error: 'Forbidden by update rule' });
-  }
-
-  const oldRow = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
-  if (!oldRow) return res.status(404).json({ error: 'Row not found' });
-
-  const fields = columns.filter(c => req.body[c.name] !== undefined);
-  if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
-
-  const setClauses = fields.map(f => `${f.name} = ?`).join(', ');
-  const values = fields.map(f => req.body[f.name]);
-
+app.put('/api/data/:table/:id', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  const id = req.params.id;
   try {
-    db.prepare(`UPDATE ${req.params.table} SET ${setClauses} WHERE id = ?`).run(...values, req.params.id);
-    const newRow = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
-    broadcastChange('update', oldRow, newRow, req.params.table);
-    triggerWebhooks('update', oldRow, newRow, req.params.table);
-    res.json(newRow);
+    const meta = await pool.query('SELECT columns, privacy FROM _tables WHERE name = $1', [table]);
+    if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+    const columns = JSON.parse(meta.rows[0].columns);
+    const privacy = JSON.parse(meta.rows[0].privacy || '{}');
+
+    // Check update rule
+    if (privacy.update) {
+      const { sql, params } = applyRule(privacy.update, req.user.id);
+      const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${sql}`, [id, ...params]);
+      if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden by update rule' });
+    }
+
+    // Get old row
+    const oldResult = await pool.query(`SELECT * FROM "${table}" WHERE id = $1`, [id]);
+    if (oldResult.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
+    const oldRow = oldResult.rows[0];
+
+    const fields = columns.filter(c => req.body[c.name] !== undefined);
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    const setClauses = fields.map((f, i) => `"${f.name}" = $${i + 2}`).join(', ');
+    const values = [id, ...fields.map(f => req.body[f.name])];
+    await pool.query(`UPDATE "${table}" SET ${setClauses} WHERE id = $1`, values);
+
+    const newRow = await pool.query(`SELECT * FROM "${table}" WHERE id = $1`, [id]);
+    broadcastChange('update', oldRow, newRow.rows[0], table);
+    triggerWebhooks('update', oldRow, newRow.rows[0], table);
+    res.json(newRow.rows[0]);
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.delete('/api/data/:table/:id', authMiddleware, (req, res) => {
-  const meta = db.prepare('SELECT privacy FROM _tables WHERE name = ?').get(req.params.table);
-  if (!meta) return res.status(404).json({ error: 'Table not found' });
-  const row = db.prepare(`SELECT * FROM ${req.params.table} WHERE id = ?`).get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'Row not found' });
-  const privacy = JSON.parse(meta.privacy || '{}');
-  if (privacy.delete) {
-    const rule = applyRule(privacy.delete, req.user.id);
-    if (!db.prepare(`SELECT 1 FROM ${req.params.table} WHERE id = ? AND ${rule}`).get(req.params.id))
-      return res.status(403).json({ error: 'Forbidden by delete rule' });
-  }
-  db.prepare(`DELETE FROM ${req.params.table} WHERE id = ?`).run(req.params.id);
-  broadcastChange('delete', row, null, req.params.table);
-  triggerWebhooks('delete', row, null, req.params.table);
-  res.json({ success: true });
+app.delete('/api/data/:table/:id', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  const id = req.params.id;
+  try {
+    const meta = await pool.query('SELECT privacy FROM _tables WHERE name = $1', [table]);
+    if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+    const privacy = JSON.parse(meta.rows[0].privacy || '{}');
+
+    const oldRow = await pool.query(`SELECT * FROM "${table}" WHERE id = $1`, [id]);
+    if (oldRow.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
+
+    if (privacy.delete) {
+      const { sql, params } = applyRule(privacy.delete, req.user.id);
+      const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${sql}`, [id, ...params]);
+      if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden by delete rule' });
+    }
+
+    await pool.query(`DELETE FROM "${table}" WHERE id = $1`, [id]);
+    broadcastChange('delete', oldRow.rows[0], null, table);
+    triggerWebhooks('delete', oldRow.rows[0], null, table);
+    res.json({ success: true });
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Webhooks
-app.get('/api/webhooks/:table', authMiddleware, (req, res) => {
-  res.json(db.prepare('SELECT id, url, event FROM _webhooks WHERE table_name = ?').all(req.params.table));
+// Webhooks (unchanged, but use pool)
+app.get('/api/webhooks/:table', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, url, event FROM _webhooks WHERE table_name = $1', [req.params.table]);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/webhooks/:table', authMiddleware, (req, res) => {
+app.post('/api/webhooks/:table', authMiddleware, async (req, res) => {
   const { url, event } = req.body;
-  db.prepare('INSERT INTO _webhooks (table_name, url, event) VALUES (?, ?, ?)').run(req.params.table, url, event);
-  res.status(201).json({ success: true });
+  try {
+    await pool.query('INSERT INTO _webhooks (table_name, url, event) VALUES ($1, $2, $3)', [req.params.table, url, event]);
+    res.status(201).json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.delete('/api/webhooks/:id', authMiddleware, (req, res) => {
-  db.prepare('DELETE FROM _webhooks WHERE id = ?').run(req.params.id);
-  res.json({ success: true });
+app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM _webhooks WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // Health
-app.get('/health', (req, res) => res.send('OK'));
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.send('OK');
+  } catch { res.status(500).send('Database connection failed'); }
+});
 
-// WebSocket
+// WebSocket (unchanged)
 const clients = new Map();
 wss.on('connection', (ws) => {
   ws.on('message', (msg) => {
@@ -390,10 +452,13 @@ function broadcastChange(event, oldRecord, newRecord, table) {
 }
 
 function triggerWebhooks(event, oldRecord, newRecord, table) {
-  const hooks = db.prepare('SELECT url FROM _webhooks WHERE table_name = ? AND event = ?').all(table, event);
-  hooks.forEach(({ url }) => {
-    axios.post(url, { event, old: oldRecord, new: newRecord, table }).catch(err => console.error('Webhook failed:', err.message));
-  });
+  pool.query('SELECT url FROM _webhooks WHERE table_name = $1 AND event = $2', [table, event])
+    .then(result => {
+      result.rows.forEach(({ url }) => {
+        axios.post(url, { event, old: oldRecord, new: newRecord, table }).catch(err => console.error('Webhook failed:', err.message));
+      });
+    })
+    .catch(() => {});
 }
 
 server.listen(PORT, '0.0.0.0', () => {
