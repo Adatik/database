@@ -17,7 +17,6 @@
     })();
   </script>
   <style>
-    /* ... all the existing styles, exactly as before ... */
     body { font-family: 'Inter', system-ui, sans-serif; }
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
     .modal-overlay.active { display: flex; }
@@ -35,12 +34,14 @@
     .dragging { opacity: 0.5; }
     .edit-popup { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
     .dark .edit-popup { background: #1A1F24; border-color: #374151; }
-    .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
+    .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
     .dark .filter-panel { background: #1A1F24; border-color: #374151; }
     select { border-color: #324380; border-radius: 6px; }
     select:focus { border-color: #091747; outline: none; }
-    .webhook-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .webhook-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
     .dark .webhook-item { border-color: #374151; }
+    table { border-radius: 12px; overflow: hidden; }
+    .privacy-table td, .privacy-table th { padding: 8px; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -57,7 +58,7 @@
     <p id="auth-message" class="text-sm text-red-500 text-center"></p>
   </div>
 
-  <!-- Main App (exactly the same structure as before, no changes) -->
+  <!-- Main App -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
     <!-- Sidebar -->
     <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
@@ -183,7 +184,7 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
-  <!-- ============= MODALS ============= -->
+   <!-- ============= MODALS ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
@@ -254,7 +255,7 @@
       <div class="mb-6">
         <h4 class="font-medium text-[#101213] dark:text-white mb-2">Row‑level rules</h4>
         <div class="overflow-x-auto">
-          <table class="w-full text-sm" id="privacy-rules-table">
+          <table class="w-full text-sm privacy-table" style="border-radius:12px; overflow:hidden;">
             <thead>
               <tr class="bg-[#091747] text-white">
                 <th class="px-3 py-2 text-left">Condition</th>
@@ -273,7 +274,7 @@
       <div>
         <h4 class="font-medium text-[#101213] dark:text-white mb-2">Column‑level permissions</h4>
         <div class="overflow-x-auto">
-          <table class="w-full text-sm" id="column-perms-table">
+          <table class="w-full text-sm privacy-table" style="border-radius:12px; overflow:hidden;">
             <thead>
               <tr class="bg-[#091747] text-white">
                 <th class="px-3 py-2 text-left">Column</th>
@@ -329,7 +330,7 @@
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-bold text-[#101213] dark:text-white">API Documentation – <span id="api-table-name"></span></h3>
         <div class="flex items-center gap-2">
-          <button onclick="toggleApiToken()" class="text-xs text-[#091747] hover:text-[#324380] border border-[#324380] px-2 py-1 rounded">Show token</button>
+          <button onclick="toggleApiToken()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Show token</button>
           <button onclick="closeModal('api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
         </div>
       </div>
@@ -1402,14 +1403,25 @@ const data = await res.json();`;
         return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
           <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
           <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
-          <details class="mb-2"><summary class="text-sm text-[#091747] hover:text-[#324380] cursor-pointer">cURL</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(curlEx)}</code></pre><button onclick="copyText('${escapeHtml(curlEx)}', this)" class="text-xs text-[#091747] mt-1 hover:underline">Copy</button></details>
-          <details><summary class="text-sm text-[#091747] hover:text-[#324380] cursor-pointer">Node.js</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(nodeEx)}</code></pre><button onclick="copyText('${escapeHtml(nodeEx)}', this)" class="text-xs text-[#091747] mt-1 hover:underline">Copy</button></details>
+          <details class="mb-2">
+            <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+            <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code>${escapeHtml(curlEx)}</code><button onclick="copyText('${escapeHtml(curlEx)}', this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+          </details>
+          <details>
+            <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+            <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code>${escapeHtml(nodeEx)}</code><button onclick="copyText('${escapeHtml(nodeEx)}', this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+          </details>
         </div>`;
       }).join('');
       document.getElementById('api-modal').classList.add('active');
     }
 
-    function copyText(text, btn) { navigator.clipboard.writeText(text).then(() => { btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy',2000); }); }
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = '📋 Copy', 2000);
+      });
+    }
 
     // ======= WEBOOKS =======
     async function openWebhooksModal() {
@@ -1477,7 +1489,10 @@ const data = await res.json();`;
         webhookHeaders = [];
         renderWebhookHeaders();
         showToast('Webhook added');
-      } else showToast('Failed', true);
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
+      }
     }
 
     async function deleteWebhook(id) {
