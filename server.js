@@ -85,7 +85,8 @@ async function initDb() {
         id SERIAL PRIMARY KEY,
         table_name TEXT NOT NULL,
         url TEXT NOT NULL,
-        event TEXT NOT NULL CHECK(event IN ('insert','update','delete'))
+        event TEXT NOT NULL CHECK(event IN ('insert','update','delete')),
+        headers TEXT DEFAULT '[]'
       );
     `);
 
@@ -166,7 +167,7 @@ function mapType(type) {
   }
 }
 
-// Auth routes
+// ==================== AUTH ROUTES ====================
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
@@ -190,7 +191,7 @@ app.post('/api/login', async (req, res) => {
   res.json({ user: { id: user.id, email: user.email }, token: jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' }) });
 });
 
-// Table management
+// ==================== TABLE MANAGEMENT ====================
 app.get('/api/tables', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query('SELECT name, columns, privacy, sort_order FROM _tables ORDER BY sort_order, id');
@@ -301,7 +302,7 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Dynamic CRUD
+// ==================== DYNAMIC CRUD ====================
 app.get('/api/data/:table', authMiddleware, async (req, res) => {
   const table = req.params.table;
   try {
@@ -310,6 +311,32 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     const columns = JSON.parse(meta.rows[0].columns).map(c => c.name);
     const privacy = JSON.parse(meta.rows[0].privacy || '{}');
 
+    // If count request
+    if (req.query.count === 'true') {
+      let countQuery = `SELECT COUNT(*) as total FROM "${table}"`;
+      const conditions = [];
+      const params = [];
+      let paramIndex = 1;
+
+      if (!req.user.admin && privacy.read) {
+        const { sql, params: ruleParams } = applyRule(privacy.read, req.user.id);
+        const replacedRule = sql.replace(/\$1/g, `$${paramIndex}`);
+        paramIndex++;
+        conditions.push(replacedRule);
+        params.push(ruleParams[0]);
+      }
+
+      const filters = parseFilters(req, columns);
+      filters.conditions.forEach(cond => conditions.push(cond));
+      params.push(...filters.params);
+
+      if (conditions.length > 0) countQuery += ' WHERE ' + conditions.join(' AND ');
+
+      const result = await pool.query(countQuery, params);
+      return res.json({ count: parseInt(result.rows[0].total) });
+    }
+
+    // Regular data query
     let query = `SELECT id, user_id, ${columns.map(c => `"${c}"`).join(', ')} FROM "${table}"`;
     const conditions = [];
     const params = [];
@@ -323,14 +350,9 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
       params.push(ruleParams[0]);
     }
 
-    if (req.query.filter) {
-      for (const [col, val] of Object.entries(req.query.filter)) {
-        if (columns.includes(col)) {
-          conditions.push(`"${col}" = $${paramIndex++}`);
-          params.push(val);
-        }
-      }
-    }
+    const filters = parseFilters(req, columns);
+    filters.conditions.forEach(cond => conditions.push(cond));
+    params.push(...filters.params);
 
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
@@ -352,6 +374,49 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+function parseFilters(req, columns) {
+  const conditions = [];
+  const params = [];
+  let paramIndex = 1; // will be used outside, need to return them
+
+  if (req.query.filter) {
+    if (typeof req.query.filter === 'object' && !Array.isArray(req.query.filter)) {
+      const keys = Object.keys(req.query.filter);
+      if (keys.length > 0 && !isNaN(keys[0])) {
+        keys.forEach(key => {
+          const f = req.query.filter[key];
+          if (f.column && f.value && columns.includes(f.column)) {
+            const op = f.operator || 'eq';
+            const sqlOp = opMap[op] || '=';
+            let condition;
+            if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') {
+              condition = `"${f.column}" ${sqlOp} $${paramIndex}`;
+              params.push(`%${f.value}%`);
+            } else {
+              condition = `"${f.column}" ${sqlOp} $${paramIndex}`;
+              params.push(f.value);
+            }
+            conditions.push(condition);
+            paramIndex++;
+          }
+        });
+        return { conditions, params };
+      }
+    }
+
+    // Fallback simple equality
+    Object.entries(req.query.filter).forEach(([col, val]) => {
+      if (columns.includes(col)) {
+        conditions.push(`"${col}" = $${paramIndex}`);
+        params.push(val);
+        paramIndex++;
+      }
+    });
+  }
+
+  return { conditions, params };
+}
+
 app.post('/api/data/:table', authMiddleware, async (req, res) => {
   const table = req.params.table;
   try {
@@ -363,7 +428,7 @@ app.post('/api/data/:table', authMiddleware, async (req, res) => {
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
 
     const fieldNames = fields.map(f => f.name);
-    const placeholders = fields.map((_, i) => `$${i + 2}`); // $2, $3, ...
+    const placeholders = fields.map((_, i) => `$${i + 2}`);
     const values = fields.map(f => {
       const colMeta = columns.find(c => c.name === f.name);
       if (colMeta && (colMeta.type === 'boolean' || colMeta.type === 'bool')) {
@@ -438,20 +503,68 @@ app.delete('/api/data/:table/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Webhooks
-app.get('/api/webhooks/:table', authMiddleware, async (req, res) => {
+// ==================== BULK ENDPOINTS ====================
+app.post('/api/data/:table/bulk/delete', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
   try {
-    const result = await pool.query('SELECT id, url, event FROM _webhooks WHERE table_name = $1', [req.params.table]);
-    res.json(result.rows);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const id of ids) {
+        await client.query(`DELETE FROM "${table}" WHERE id = $1`, [id]);
+      }
+      await client.query('COMMIT');
+      broadcastChange('bulk_delete', null, null, table);
+      triggerWebhooks('bulk_delete', null, null, table);
+      res.json({ success: true });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally { client.release(); }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/webhooks/:table', authMiddleware, async (req, res) => {
-  const { url, event } = req.body;
+
+app.post('/api/data/:table/bulk/update', authMiddleware, async (req, res) => {
+  const table = req.params.table;
+  const { ids, field, value } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0 || !field) return res.status(400).json({ error: 'ids array, field, and value required' });
   try {
-    await pool.query('INSERT INTO _webhooks (table_name, url, event) VALUES ($1, $2, $3)', [req.params.table, url, event]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const id of ids) {
+        await client.query(`UPDATE "${table}" SET "${field}" = $1 WHERE id = $2`, [value, id]);
+      }
+      await client.query('COMMIT');
+      broadcastChange('bulk_update', null, null, table);
+      triggerWebhooks('bulk_update', null, null, table);
+      res.json({ success: true });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally { client.release(); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==================== WEBHOOKS ====================
+app.get('/api/webhooks/:table', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, url, event, headers FROM _webhooks WHERE table_name = $1', [req.params.table]);
+    res.json(result.rows.map(r => ({ ...r, headers: JSON.parse(r.headers || '[]') })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/webhooks/:table', authMiddleware, async (req, res) => {
+  const { url, event, headers } = req.body;
+  try {
+    await pool.query('INSERT INTO _webhooks (table_name, url, event, headers) VALUES ($1, $2, $3, $4)',
+      [req.params.table, url, event, JSON.stringify(headers || [])]);
     res.status(201).json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
 app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM _webhooks WHERE id = $1', [req.params.id]);
@@ -459,15 +572,12 @@ app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Health
+// ==================== HEALTH ====================
 app.get('/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.send('OK');
-  } catch { res.status(500).send('DB connection failed'); }
+  try { await pool.query('SELECT 1'); res.send('OK'); } catch { res.status(500).send('DB connection failed'); }
 });
 
-// WebSocket
+// ==================== WEBSOCKET ====================
 const clients = new Map();
 wss.on('connection', (ws) => {
   ws.on('message', (msg) => {
@@ -489,16 +599,20 @@ function broadcastChange(event, oldRecord, newRecord, table) {
 }
 
 function triggerWebhooks(event, oldRecord, newRecord, table) {
-  pool.query('SELECT url FROM _webhooks WHERE table_name = $1 AND event = $2', [table, event])
+  pool.query('SELECT url, headers FROM _webhooks WHERE table_name = $1 AND event = $2', [table, event])
     .then(result => {
-      result.rows.forEach(({ url }) => {
-        axios.post(url, { event, old: oldRecord, new: newRecord, table }).catch(err => console.error('Webhook failed:', err.message));
+      result.rows.forEach(({ url, headers }) => {
+        const hdrs = JSON.parse(headers || '[]');
+        const headersObj = {};
+        hdrs.forEach(h => { if (h.key) headersObj[h.key] = h.value; });
+        axios.post(url, { event, old: oldRecord, new: newRecord, table }, { headers: headersObj })
+          .catch(err => console.error('Webhook failed:', err.message));
       });
     })
     .catch(() => {});
 }
 
-// Start
+// ==================== START ====================
 initDb()
   .then(() => {
     server.listen(PORT, '0.0.0.0', () => {
