@@ -20,7 +20,7 @@
     body { font-family: 'Inter', system-ui, sans-serif; }
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
     .modal-overlay.active { display: flex; }
-    .action-dropdown { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 120px; display: none; }
+    .action-dropdown { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; min-width: 120px; display: none; }
     .dark .action-dropdown { background: #1A1F24; border-color: #374151; }
     .action-dropdown.show { display: block; }
     .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 200px; display: none; }
@@ -40,8 +40,20 @@
     select:focus { border-color: #091747; outline: none; }
     .webhook-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
     .dark .webhook-item { border-color: #374151; }
-    table { border-radius: 12px; overflow: hidden; }
-    .privacy-table td, .privacy-table th { padding: 8px; }
+    table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
+    #data-table-container { overflow: visible !important; }
+    td { position: relative; }
+    .privacy-rule-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: white;
+    }
+    .dark .privacy-rule-card {
+      background: #1A1F24;
+      border-color: #374151;
+    }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -184,7 +196,6 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
-   <!-- ============= MODALS ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
@@ -248,45 +259,12 @@
     </div>
   </div>
 
-  <!-- Privacy Modal -->
+  <!-- Privacy Modal (redesigned with per-rule column permissions) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
-      <div class="mb-6">
-        <h4 class="font-medium text-[#101213] dark:text-white mb-2">Row‑level rules</h4>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm privacy-table" style="border-radius:12px; overflow:hidden;">
-            <thead>
-              <tr class="bg-[#091747] text-white">
-                <th class="px-3 py-2 text-left">Condition</th>
-                <th class="px-3 py-2 text-center">Read</th>
-                <th class="px-3 py-2 text-center">Write</th>
-                <th class="px-3 py-2 text-center">Update</th>
-                <th class="px-3 py-2 text-center">Delete</th>
-                <th class="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody id="privacy-rules-body"></tbody>
-          </table>
-        </div>
-        <button onclick="addPrivacyRuleRow()" class="mt-2 text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add rule</button>
-      </div>
-      <div>
-        <h4 class="font-medium text-[#101213] dark:text-white mb-2">Column‑level permissions</h4>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm privacy-table" style="border-radius:12px; overflow:hidden;">
-            <thead>
-              <tr class="bg-[#091747] text-white">
-                <th class="px-3 py-2 text-left">Column</th>
-                <th class="px-3 py-2 text-center">Read</th>
-                <th class="px-3 py-2 text-center">Write</th>
-                <th class="px-3 py-2 text-center">Update</th>
-              </tr>
-            </thead>
-            <tbody id="column-perms-body"></tbody>
-          </table>
-        </div>
-      </div>
+      <div id="privacy-rules-container" class="space-y-4"></div>
+      <button onclick="addPrivacyRuleCard()" class="mt-2 text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add rule</button>
       <div class="flex gap-2 mt-4">
         <button onclick="savePrivacyRules()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Save Rules</button>
         <button onclick="closeModal('privacy-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
@@ -408,8 +386,8 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
+    // Each privacy rule: { condition, read, write, update, delete, columns: { read:[], write:[], update:[] } }
     let privacyRules = [];
-    let columnPermissions = { read: [], write: [], update: [] };
     let showRealToken = false;
     let currentPage = 1;
     let rowsPerPage = 10;
@@ -547,7 +525,7 @@
 
     function renderTableList() {
       const list = document.getElementById('table-list');
-      list.innerHTML = allTables.map((t, idx) => `
+      list.innerHTML = allTables.map(t => `
         <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition drag-item ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" 
             data-table="${t.name}">
           <span class="drag-handle mr-2" draggable="true" 
@@ -672,19 +650,9 @@
       }
     }
 
-    function prevPage() {
-      if (currentPage > 1) { currentPage--; fetchAndRenderRows(); }
-    }
-    function nextPage() {
-      const totalPages = Math.ceil(totalRows / rowsPerPage);
-      if (currentPage < totalPages) { currentPage++; fetchAndRenderRows(); }
-    }
-
-    function changeRowsPerPage() {
-      rowsPerPage = parseInt(document.getElementById('rows-per-page').value);
-      currentPage = 1;
-      fetchAndRenderRows();
-    }
+    function prevPage() { if (currentPage > 1) { currentPage--; fetchAndRenderRows(); } }
+    function nextPage() { const totalPages = Math.ceil(totalRows / rowsPerPage); if (currentPage < totalPages) { currentPage++; fetchAndRenderRows(); } }
+    function changeRowsPerPage() { rowsPerPage = parseInt(document.getElementById('rows-per-page').value); currentPage = 1; fetchAndRenderRows(); }
 
     // ======= BULK SELECTION =======
     function toggleSelectAll(source) {
@@ -698,21 +666,13 @@
       updateBulkBar();
     }
 
-    function toggleRowSelection(id, checked) {
-      if (checked) selectedRows.add(id);
-      else selectedRows.delete(id);
-      updateBulkBar();
-    }
+    function toggleRowSelection(id, checked) { if (checked) selectedRows.add(id); else selectedRows.delete(id); updateBulkBar(); }
 
     function updateBulkBar() {
       const count = selectedRows.size;
       document.getElementById('selected-count').textContent = count;
       document.getElementById('total-row-count').textContent = currentRows.length;
-      if (count > 0) {
-        document.getElementById('bulk-bar').classList.remove('hidden');
-      } else {
-        document.getElementById('bulk-bar').classList.add('hidden');
-      }
+      document.getElementById('bulk-bar').classList.toggle('hidden', count === 0);
     }
 
     async function bulkDelete() {
@@ -720,18 +680,10 @@
       if (!confirm(`Delete ${selectedRows.size} row(s)?`)) return;
       const ids = Array.from(selectedRows);
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ids })
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids })
       });
-      if (res.ok) {
-        selectedRows.clear();
-        fetchAndRenderRows();
-        showToast('Deleted');
-      } else {
-        const err = await res.json();
-        showToast(err.error || 'Failed', true);
-      }
+      if (res.ok) { selectedRows.clear(); fetchAndRenderRows(); showToast('Deleted'); }
+      else { const err = await res.json(); showToast(err.error || 'Failed', true); }
     }
 
     async function bulkDuplicate() {
@@ -743,9 +695,7 @@
         const body = {};
         currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
         await fetch(`${API_BASE}/api/data/${selectedTable}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify(body)
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body)
         });
       }
       selectedRows.clear();
@@ -766,19 +716,10 @@
       const value = document.getElementById('bulk-edit-value').value;
       const ids = Array.from(selectedRows);
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ids, field, value })
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids, field, value })
       });
-      if (res.ok) {
-        selectedRows.clear();
-        closeModal('bulk-edit-modal');
-        fetchAndRenderRows();
-        showToast('Updated');
-      } else {
-        const err = await res.json();
-        showToast(err.error || 'Failed', true);
-      }
+      if (res.ok) { selectedRows.clear(); closeModal('bulk-edit-modal'); fetchAndRenderRows(); showToast('Updated'); }
+      else { const err = await res.json(); showToast(err.error || 'Failed', true); }
     }
 
     // ======= RENDER TABLE =======
@@ -879,19 +820,35 @@
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
     }
 
-    // ======= ACTIONS DROPDOWN =======
+    // ======= ACTIONS DROPDOWN (fixed: moved to body) =======
     function toggleActionsDropdown(e, rowId) {
       e.stopPropagation();
-      document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
+      const existing = document.querySelector('.action-dropdown.show');
+      if (existing) existing.classList.remove('show');
+
       const dropdown = document.getElementById(`actions-${rowId}`);
+      if (!dropdown) return;
+
+      const btn = e.currentTarget;
+      const rect = btn.getBoundingClientRect();
+      dropdown.style.position = 'fixed';
+      dropdown.style.left = rect.right + 'px';
+      dropdown.style.top = rect.bottom + 'px';
+      dropdown.style.zIndex = '100';
+      document.body.appendChild(dropdown);
+
       dropdown.classList.toggle('show');
-      const rect = dropdown.getBoundingClientRect();
-      if (rect.bottom > window.innerHeight) {
-        dropdown.style.top = 'auto';
-        dropdown.style.bottom = '100%';
+      if (!dropdown.classList.contains('show')) {
+        dropdown.remove();
       } else {
-        dropdown.style.top = '100%';
-        dropdown.style.bottom = 'auto';
+        const handler = (ev) => {
+          if (!dropdown.contains(ev.target) && ev.target !== btn) {
+            dropdown.classList.remove('show');
+            dropdown.remove();
+            document.removeEventListener('click', handler);
+          }
+        };
+        setTimeout(() => document.addEventListener('click', handler), 0);
       }
     }
 
@@ -997,10 +954,7 @@
       renderFilterConditions();
     }
 
-    function removeFilterCondition(index) {
-      activeFilters.splice(index, 1);
-      renderFilterConditions();
-    }
+    function removeFilterCondition(index) { activeFilters.splice(index, 1); renderFilterConditions(); }
 
     function applyFilters() {
       currentPage = 1;
@@ -1228,7 +1182,7 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY & COLUMN PERMISSIONS =======
+    // ======= PRIVACY (redesigned with per-rule column permissions) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -1243,82 +1197,92 @@
             if (existing) {
               existing[op] = true;
             } else {
-              const newRule = { condition, read: false, write: false, update: false, delete: false };
+              const newRule = {
+                condition,
+                read: false, write: false, update: false, delete: false,
+                columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)] }
+              };
               newRule[op] = true;
               privacyRules.push(newRule);
             }
           });
         }
       });
-      if (privacyRules.length === 0) privacyRules.push({ condition: `${currentColumns[0]?.name || 'id'} eq @user_id`, read: false, write: false, update: false, delete: false });
-
-      const colPerms = table?.column_permissions || {};
-      columnPermissions = {
-        read: colPerms.read || currentColumns.map(c => c.name),
-        write: colPerms.write || currentColumns.map(c => c.name),
-        update: colPerms.update || currentColumns.map(c => c.name)
-      };
-
-      renderPrivacyTable();
-      renderColumnPermsTable();
+      if (privacyRules.length === 0) {
+        privacyRules.push({
+          condition: `${currentColumns[0]?.name || 'id'} eq @user_id`,
+          read: false, write: false, update: false, delete: false,
+          columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)] }
+        });
+      }
+      renderPrivacyCards();
       document.getElementById('privacy-modal').classList.add('active');
     }
 
-    function renderPrivacyTable() {
-      const tbody = document.getElementById('privacy-rules-body');
-      tbody.innerHTML = privacyRules.map((rule, idx) => `
-        <tr class="border dark:border-gray-600 ${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'}">
-          <td class="px-3 py-2">
-            <div class="flex items-center gap-1">
-              <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyCondition(${idx}, this)" style="border-color:#324380;">
-                ${currentColumns.map(c => `<option value="${c.name}" ${rule.condition.startsWith(c.name) ? 'selected' : ''}>${c.name}</option>`).join('')}
-              </select>
-              <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
-                ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c.name))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
-              </select>
-              <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" style="border-color:#324380;" onchange="updatePrivacyValue(${idx}, this.value)">
-                <option value="@user_id" ${rule.condition.includes('@user_id') ? 'selected' : ''}>@user_id</option>
-                <optgroup label="Other tables">
-                  ${allTables.filter(t => t.name !== selectedTable).map(t => 
-                    t.columns.map(c => `<option value="${t.name}.${c.name}" ${rule.condition.includes(`${t.name}.${c.name}`) ? 'selected' : ''}>${t.name}.${c.name}</option>`).join('')
-                  ).join('')}
-                </optgroup>
-              </select>
-              <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
+    function renderPrivacyCards() {
+      const container = document.getElementById('privacy-rules-container');
+      container.innerHTML = privacyRules.map((rule, idx) => `
+        <div class="privacy-rule-card">
+          <div class="flex items-center gap-2 mb-3">
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyCondition(${idx}, this)" style="border-color:#324380;">
+              ${currentColumns.map(c => `<option value="${c.name}" ${rule.condition.startsWith(c.name) ? 'selected' : ''}>${c.name}</option>`).join('')}
+            </select>
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
+              ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c.name))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
+            </select>
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" style="border-color:#324380;" onchange="updatePrivacyValue(${idx}, this.value)">
+              <option value="@user_id" ${rule.condition.includes('@user_id') ? 'selected' : ''}>@user_id</option>
+              <optgroup label="Other tables">
+                ${allTables.filter(t => t.name !== selectedTable).map(t => 
+                  t.columns.map(c => `<option value="${t.name}.${c.name}" ${rule.condition.includes(`${t.name}.${c.name}`) ? 'selected' : ''}>${t.name}.${c.name}</option>`).join('')
+                ).join('')}
+              </optgroup>
+            </select>
+            <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
+          </div>
+          <div class="flex gap-4">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.read ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'read', this.checked)"> Read</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.write ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'write', this.checked)"> Write</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.update ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'update', this.checked)"> Update</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.delete ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'delete', this.checked)"> Delete</label>
+          </div>
+          <div class="mt-3">
+            <p class="text-xs text-[#57636C] dark:text-[#95A1AC] mb-1">Allowed columns for this rule:</p>
+            <div class="flex flex-wrap gap-2">
+              ${currentColumns.map(c => `
+                <div class="flex items-center gap-1 text-xs">
+                  <label><input type="checkbox" ${rule.columns.read.includes(c.name) ? 'checked' : ''} onchange="toggleRuleColumn('${c.name}','read',${idx}, this.checked)"> R</label>
+                  <label><input type="checkbox" ${rule.columns.write.includes(c.name) ? 'checked' : ''} onchange="toggleRuleColumn('${c.name}','write',${idx}, this.checked)"> W</label>
+                  <label><input type="checkbox" ${rule.columns.update.includes(c.name) ? 'checked' : ''} onchange="toggleRuleColumn('${c.name}','update',${idx}, this.checked)"> U</label>
+                </div>
+              `).join('')}
             </div>
-          </td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.read ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'read', this.checked)" /></td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.write ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'write', this.checked)" /></td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.update ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'update', this.checked)" /></td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.delete ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'delete', this.checked)" /></td>
-        </tr>
+          </div>
+        </div>
       `).join('');
     }
 
-    function renderColumnPermsTable() {
-      const tbody = document.getElementById('column-perms-body');
-      tbody.innerHTML = currentColumns.map((c, idx) => `
-        <tr class="border dark:border-gray-600 ${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'}">
-          <td class="px-3 py-2 text-sm">${c.name}</td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${columnPermissions.read.includes(c.name) ? 'checked' : ''} onchange="toggleColumnPerm('${c.name}', 'read', this.checked)" /></td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${columnPermissions.write.includes(c.name) ? 'checked' : ''} onchange="toggleColumnPerm('${c.name}', 'write', this.checked)" /></td>
-          <td class="px-3 py-2 text-center"><input type="checkbox" ${columnPermissions.update.includes(c.name) ? 'checked' : ''} onchange="toggleColumnPerm('${c.name}', 'update', this.checked)" /></td>
-        </tr>
-      `).join('');
-    }
-
-    function toggleColumnPerm(col, op, checked) {
-      if (checked) {
-        if (!columnPermissions[op].includes(col)) columnPermissions[op].push(col);
-      } else {
-        columnPermissions[op] = columnPermissions[op].filter(c => c !== col);
-      }
-    }
-
-    function addPrivacyRuleRow() {
+    function addPrivacyRuleCard() {
       const defaultCol = currentColumns[0]?.name || 'id';
-      privacyRules.push({ condition: `${defaultCol} eq @user_id`, read: false, write: false, update: false, delete: false });
-      renderPrivacyTable();
+      privacyRules.push({
+        condition: `${defaultCol} eq @user_id`,
+        read: false, write: false, update: false, delete: false,
+        columns: {
+          read: [...currentColumns.map(c=>c.name)],
+          write: [...currentColumns.map(c=>c.name)],
+          update: [...currentColumns.map(c=>c.name)]
+        }
+      });
+      renderPrivacyCards();
+    }
+
+    function toggleRuleColumn(col, op, idx, checked) {
+      const arr = privacyRules[idx].columns[op];
+      if (checked) {
+        if (!arr.includes(col)) arr.push(col);
+      } else {
+        privacyRules[idx].columns[op] = arr.filter(c => c !== col);
+      }
     }
 
     function updatePrivacyCondition(idx, selectEl) {
@@ -1345,15 +1309,26 @@
 
     function deletePrivacyRule(idx) {
       privacyRules.splice(idx, 1);
-      renderPrivacyTable();
+      renderPrivacyCards();
     }
 
     async function savePrivacyRules() {
-      const payload = { read: '', write: '', update: '', delete: '' };
+      const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [] } };
       ['read','write','update','delete'].forEach(op => {
         payload[op] = privacyRules.filter(r => r[op]).map(r => r.condition).join(' AND ');
       });
-      payload.column_permissions = columnPermissions;
+      // Aggregate per-rule column permissions globally (existing server expects global)
+      const globalCols = { read: new Set(), write: new Set(), update: new Set() };
+      privacyRules.forEach(rule => {
+        ['read','write','update'].forEach(op => {
+          rule.columns[op].forEach(c => globalCols[op].add(c));
+        });
+      });
+      payload.column_permissions = {
+        read: Array.from(globalCols.read),
+        write: Array.from(globalCols.write),
+        update: Array.from(globalCols.update)
+      };
       await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
