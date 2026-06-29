@@ -13,11 +13,23 @@
           colors: {
             brand: '#091747',
             secondary: '#324380',
+            light: {
+              page: '#F1F4F8',
+              box: '#FFFFFF',
+              primary: '#101213',
+              secondary: '#57636C'
+            },
+            dark: {
+              page: '#101213',
+              box: '#1A1F24',
+              primary: '#FFFFFF',
+              secondary: '#95A1AC'
+            }
           }
         }
       }
     }
-    // Apply stored or system dark mode immediately
+    // Apply stored or system dark mode
     (function() {
       const stored = localStorage.getItem('theme');
       if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -32,25 +44,26 @@
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
     .modal-overlay.active { display: flex; }
     .action-dropdown, .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 150px; display: none; }
-    .dark .action-dropdown, .dark .user-menu { background: #1f2937; border-color: #374151; }
+    .dark .action-dropdown, .dark .user-menu { background: #1A1F24; border-color: #374151; }
     .action-dropdown.show, .user-menu.show { display: block; }
     th { cursor: pointer; user-select: none; }
     th:hover { background-color: rgba(0,0,0,0.05); }
     .dark th:hover { background-color: rgba(255,255,255,0.05); }
-    .drag-handle { cursor: grab; }
+    .drag-handle { cursor: grab; padding: 0 4px; color: #9ca3af; }
+    .drag-handle:active { cursor: grabbing; }
     .dragging { opacity: 0.5; }
   </style>
 </head>
-<body class="bg-white dark:bg-gray-900 h-screen flex transition-colors text-black dark:text-white">
+<body class="bg-light-page dark:bg-dark-page text-light-primary dark:text-dark-primary h-screen flex transition-colors">
 
   <!-- Auth Container -->
-  <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-xl space-y-4">
-    <h1 class="text-2xl font-bold text-center text-gray-800 dark:text-white">My Database</h1>
-    <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-    <input type="password" id="password" placeholder="Password" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+  <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-light-box dark:bg-dark-box rounded-xl shadow-xl space-y-4">
+    <h1 class="text-2xl font-bold text-center text-light-primary dark:text-dark-primary">My Database</h1>
+    <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
+    <input type="password" id="password" placeholder="Password" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
     <div class="flex gap-2">
-      <button onclick="signUp()" class="flex-1 bg-brand text-white py-3 rounded-lg font-semibold border-2 border-secondary hover:bg-secondary transition">Sign Up</button>
-      <button onclick="signIn()" class="flex-1 bg-brand text-white py-3 rounded-lg font-semibold border-2 border-secondary hover:bg-secondary transition">Sign In</button>
+      <button onclick="signUp()" class="flex-1 bg-brand text-white py-3 rounded-lg font-semibold border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Sign Up</button>
+      <button onclick="signIn()" class="flex-1 bg-brand text-white py-3 rounded-lg font-semibold border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Sign In</button>
     </div>
     <p id="auth-message" class="text-sm text-red-500 text-center"></p>
   </div>
@@ -58,11 +71,11 @@
   <!-- Main App -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
     <!-- Sidebar -->
-    <div class="w-60 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
+    <div class="w-60 bg-light-box dark:bg-dark-box border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="font-bold text-lg text-gray-800 dark:text-white">Tables</h2>
-          <button onclick="openCreateTableModal()" class="bg-brand hover:bg-secondary text-white w-7 h-7 rounded-full flex items-center justify-center border-2 border-secondary transition">
+          <h2 class="font-bold text-lg text-light-primary dark:text-dark-primary">Tables</h2>
+          <button onclick="openCreateTableModal()" class="bg-brand hover:bg-secondary text-white w-7 h-7 rounded-full flex items-center justify-center border-2 border-secondary transition" style="border-radius:8px;">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
             </svg>
@@ -71,35 +84,35 @@
         <ul id="table-list" class="space-y-1"></ul>
       </div>
       <div class="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        <button onclick="toggleDarkMode()" class="w-full text-left text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded" id="theme-toggle">🌓 Dark mode</button>
-        <button onclick="signOut()" class="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 py-2 rounded-lg text-gray-600 dark:text-gray-200 font-medium border-2 border-secondary transition">Logout</button>
+        <button onclick="toggleDarkMode()" class="w-full text-left text-sm text-light-secondary dark:text-dark-secondary hover:bg-gray-100 dark:hover:bg-dark-box px-2 py-1 rounded" id="theme-toggle">🌓 Dark mode</button>
+        <button onclick="signOut()" class="w-full bg-gray-100 dark:bg-dark-box hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-lg text-light-secondary dark:text-dark-secondary font-medium border-2 border-secondary transition" style="border-radius:8px;">Logout</button>
       </div>
     </div>
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- Top Bar -->
-      <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
-        <h1 id="current-table-name" class="text-xl font-semibold text-gray-800 dark:text-white">Select a table</h1>
+      <div class="bg-light-box dark:bg-dark-box border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
+        <h1 id="current-table-name" class="text-xl font-semibold text-light-primary dark:text-dark-primary">Select a table</h1>
         <div class="flex items-center gap-3 flex-wrap">
-          <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">Edit Table</button>
-          <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">Add Row</button>
-          <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">Privacy</button>
-          <button onclick="openApiModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">API</button>
-          <button onclick="openWebhooksModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">Webhooks</button>
-          <button onclick="exportCSV()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition">Export CSV</button>
+          <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Edit Table</button>
+          <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Add Row</button>
+          <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Privacy</button>
+          <button onclick="openApiModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">API</button>
+          <button onclick="openWebhooksModal()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Webhooks</button>
+          <button onclick="exportCSV()" class="px-3 py-1.5 text-sm bg-brand text-white rounded-lg border-2 border-secondary hover:bg-secondary transition" style="border-radius:8px;">Export CSV</button>
           <div class="relative">
-            <button onclick="toggleLogsModal()" class="text-gray-600 dark:text-gray-300 hover:text-brand transition text-xl">🔔</button>
+            <button onclick="toggleLogsModal()" class="text-light-secondary dark:text-dark-secondary hover:text-brand transition text-xl">🔔</button>
           </div>
           <div class="relative">
-            <button id="user-menu-button" class="flex items-center space-x-2 text-gray-700 dark:text-gray-300 hover:text-brand transition">
+            <button id="user-menu-button" class="flex items-center space-x-2 text-light-secondary dark:text-dark-secondary hover:text-brand transition">
               <span class="text-xl">👤</span>
               <span id="user-email-display" class="hidden sm:inline text-sm"></span>
             </button>
             <div id="user-menu-dropdown" class="user-menu">
               <div class="p-3 border-b dark:border-gray-600">
-                <p class="text-sm text-gray-500 dark:text-gray-400">Signed in as</p>
-                <p id="user-email-full" class="text-sm font-medium text-gray-800 dark:text-white truncate"></p>
+                <p class="text-sm text-light-secondary dark:text-dark-secondary">Signed in as</p>
+                <p id="user-email-full" class="text-sm font-medium text-light-primary dark:text-dark-primary truncate"></p>
               </div>
               <button onclick="signOut()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Sign out</button>
             </div>
@@ -109,13 +122,13 @@
 
       <!-- Table Area -->
       <div class="flex-1 overflow-auto p-6">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
+        <div class="bg-light-box dark:bg-dark-box rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
           <table class="w-full" id="data-table">
-            <thead id="table-head" class="bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm"></thead>
+            <thead id="table-head" class="bg-gray-50 dark:bg-dark-box text-light-secondary dark:text-dark-secondary text-sm"></thead>
             <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
           </table>
         </div>
-        <div id="no-table-selected" class="text-center text-gray-400 dark:text-gray-500 mt-16 text-lg">Select a table from the left to view its data.</div>
+        <div id="no-table-selected" class="text-center text-light-secondary dark:text-dark-secondary mt-16 text-lg">Select a table from the left to view its data.</div>
       </div>
     </div>
   </div>
@@ -126,118 +139,118 @@
   <!-- ============= MODALS ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Create New Table</h3>
-      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Create New Table</h3>
+      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
       <div id="new-columns" class="space-y-3 mb-3"></div>
       <button onclick="addColumnField()" class="text-brand hover:text-secondary text-sm">+ Add column</button>
       <p id="create-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="createTable()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1">Create</button>
-        <button onclick="closeModal('create-table-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="createTable()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1" style="border-radius:8px;">Create</button>
+        <button onclick="closeModal('create-table-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- Delete Table Modal -->
   <div id="delete-table-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Delete Table</h3>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p>
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Delete Table</h3>
+      <p class="text-sm text-light-secondary dark:text-dark-secondary mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p>
       <div class="flex items-center gap-2 mb-2">
-        <input id="delete-confirm-input" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-400 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Table name" />
+        <input id="delete-confirm-input" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-400 outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" placeholder="Table name" />
         <button onclick="copyTableName()" class="text-secondary hover:text-brand text-sm border border-secondary px-2 py-1 rounded">Copy</button>
       </div>
       <p id="delete-table-error" class="text-red-500 text-sm hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-red-700 transition flex-1">Delete</button>
-        <button onclick="closeModal('delete-table-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-red-700 transition flex-1" style="border-radius:8px;">Delete</button>
+        <button onclick="closeModal('delete-table-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- Rename Table Modal -->
   <div id="rename-table-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Rename Table</h3>
-      <input id="rename-table-input" class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Rename Table</h3>
+      <input id="rename-table-input" class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
       <p id="rename-table-error" class="text-red-500 text-sm hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="confirmRenameTable()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1">Rename</button>
-        <button onclick="closeModal('rename-table-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="confirmRenameTable()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1" style="border-radius:8px;">Rename</button>
+        <button onclick="closeModal('rename-table-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- Edit Table Schema Modal -->
   <div id="edit-table-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Edit Table: <span id="edit-table-name"></span></h3>
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Edit Table: <span id="edit-table-name"></span></h3>
       <div id="edit-columns" class="space-y-3 mb-3"></div>
       <button onclick="addEditColumnField()" class="text-brand hover:text-secondary text-sm">+ Add column</button>
       <p id="edit-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="saveTableSchema()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1">Save Changes</button>
-        <button onclick="closeModal('edit-table-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="saveTableSchema()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1" style="border-radius:8px;">Save Changes</button>
+        <button onclick="closeModal('edit-table-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- Add Row Modal -->
   <div id="add-row-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Add New Row</h3>
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Add New Row</h3>
       <div id="add-row-fields" class="space-y-3"></div>
       <p id="add-row-error" class="text-red-500 text-sm mt-2 hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="confirmAddRow()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1">Add Row</button>
-        <button onclick="closeModal('add-row-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="confirmAddRow()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1" style="border-radius:8px;">Add Row</button>
+        <button onclick="closeModal('add-row-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- Privacy Modal -->
   <div id="privacy-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Privacy Rules for <span id="privacy-table-name"></span></h3>
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Privacy Rules for <span id="privacy-table-name"></span></h3>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
-          <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Read Access</h4>
+          <h4 class="font-medium text-light-primary dark:text-dark-primary mb-2">Read Access</h4>
           <div id="read-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('read')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
         <div>
-          <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Write Access</h4>
+          <h4 class="font-medium text-light-primary dark:text-dark-primary mb-2">Write Access</h4>
           <div id="write-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('write')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
         <div>
-          <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Update Access</h4>
+          <h4 class="font-medium text-light-primary dark:text-dark-primary mb-2">Update Access</h4>
           <div id="update-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('update')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
         <div>
-          <h4 class="font-medium text-gray-700 dark:text-gray-200 mb-2">Delete Access</h4>
+          <h4 class="font-medium text-light-primary dark:text-dark-primary mb-2">Delete Access</h4>
           <div id="delete-rules" class="space-y-1"></div>
           <button onclick="addPrivacyCondition('delete')" class="text-brand hover:text-secondary text-sm mt-1">+ Add condition</button>
         </div>
       </div>
       <p id="privacy-error" class="text-red-500 text-sm mt-2 hidden"></p>
       <div class="flex gap-2 mt-4">
-        <button onclick="savePrivacyRules()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1">Save Rules</button>
-        <button onclick="closeModal('privacy-modal')" class="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition">Cancel</button>
+        <button onclick="savePrivacyRules()" class="bg-brand text-white px-4 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition flex-1" style="border-radius:8px;">Save Rules</button>
+        <button onclick="closeModal('privacy-modal')" class="bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
 
   <!-- API Docs Modal -->
   <div id="api-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-gray-800 dark:text-white">API Documentation – <span id="api-table-name"></span></h3>
+        <h3 class="text-lg font-bold text-light-primary dark:text-dark-primary">API Documentation – <span id="api-table-name"></span></h3>
         <div class="flex items-center gap-2">
           <button onclick="toggleApiToken()" class="text-xs text-brand hover:text-secondary border border-secondary px-2 py-1 rounded">Show token</button>
-          <button onclick="closeModal('api-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">✕</button>
+          <button onclick="closeModal('api-modal')" class="text-light-secondary dark:text-dark-secondary hover:text-light-primary dark:hover:text-dark-primary text-xl">✕</button>
         </div>
       </div>
       <div id="api-content" class="space-y-6"></div>
@@ -246,34 +259,34 @@
 
   <!-- Webhooks Modal -->
   <div id="webhooks-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white">Webhooks (<span id="webhooks-table-name"></span>)</h3>
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-light-primary dark:text-dark-primary">Webhooks (<span id="webhooks-table-name"></span>)</h3>
       <div class="flex gap-2 mb-4">
-        <input id="webhook-url" placeholder="URL" class="flex-1 border p-2 rounded-lg text-sm focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-        <select id="webhook-event" class="border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <input id="webhook-url" placeholder="URL" class="flex-1 border p-2 rounded-lg text-sm focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
+        <select id="webhook-event" class="border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary">
           <option value="insert">insert</option>
           <option value="update">update</option>
           <option value="delete">delete</option>
         </select>
-        <button onclick="addWebhook()" class="bg-brand text-white px-3 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition text-sm">Add</button>
+        <button onclick="addWebhook()" class="bg-brand text-white px-3 py-2 rounded-lg border-2 border-secondary hover:bg-secondary transition text-sm" style="border-radius:8px;">Add</button>
       </div>
-      <ul id="webhook-list" class="space-y-2 text-sm dark:text-gray-200"></ul>
-      <button onclick="closeModal('webhooks-modal')" class="mt-4 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-500 transition w-full">Close</button>
+      <ul id="webhook-list" class="space-y-2 text-sm dark:text-dark-primary"></ul>
+      <button onclick="closeModal('webhooks-modal')" class="mt-4 bg-gray-200 dark:bg-dark-box text-light-primary dark:text-dark-primary px-4 py-2 rounded-lg border-2 border-secondary hover:bg-gray-300 dark:hover:bg-gray-600 transition w-full" style="border-radius:8px;">Close</button>
     </div>
   </div>
 
   <!-- Logs Modal -->
   <div id="logs-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+    <div class="bg-light-box dark:bg-dark-box p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-gray-800 dark:text-white">Real‑Time Change Log</h3>
-        <button onclick="closeModal('logs-modal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">✕</button>
+        <h3 class="text-lg font-bold text-light-primary dark:text-dark-primary">Real‑Time Change Log</h3>
+        <button onclick="closeModal('logs-modal')" class="text-light-secondary dark:text-dark-secondary hover:text-light-primary dark:hover:text-dark-primary text-xl">✕</button>
       </div>
-      <div id="logs-content" class="text-sm space-y-1 text-gray-600 dark:text-gray-300 max-h-[60vh] overflow-y-auto"></div>
+      <div id="logs-content" class="text-sm space-y-1 text-light-secondary dark:text-dark-secondary max-h-[60vh] overflow-y-auto"></div>
     </div>
   </div>
+
   <script>
-    // ================ GLOBALS ================
     const API_BASE = window.location.origin;
     let token = localStorage.getItem('token');
     let ws = null;
@@ -291,7 +304,7 @@
     let privacyRules = { read: [], write: [], update: [], delete: [] };
     let showRealToken = false;
 
-    // ================ DARK MODE ================
+    // ======= DARK MODE =======
     function toggleDarkMode() {
       const html = document.documentElement;
       if (html.classList.contains('dark')) {
@@ -315,13 +328,13 @@
       setTimeout(() => t.style.display = 'none', 3000);
     }
 
-    // ================ AUTH ================
+    // ======= AUTH =======
     function showAuthMessage(msg) { document.getElementById('auth-message').textContent = msg; }
     function showAuth() {
       document.getElementById('auth-container').classList.remove('hidden');
       document.getElementById('app-container').classList.add('hidden');
     }
-    function showApp() {
+    async function showApp() {
       document.getElementById('auth-container').classList.add('hidden');
       document.getElementById('app-container').classList.remove('hidden');
       const email = getUserEmail();
@@ -329,7 +342,7 @@
       document.getElementById('user-email-full').textContent = email;
       document.getElementById('theme-toggle').textContent = 
         document.documentElement.classList.contains('dark') ? '☀️ Light mode' : '🌓 Dark mode';
-      loadAllTables();
+      await loadAllTables(); // ensure tables are loaded before restoring selection
       connectWebSocket();
       if (selectedTable) selectTable(selectedTable);
     }
@@ -386,7 +399,7 @@
       document.getElementById('user-menu-dropdown').classList.toggle('show');
     });
 
-    // ================ TABLE LIST WITH DRAG & DROP ================
+    // ======= TABLE LIST WITH SEPARATE DRAG HANDLE =======
     async function loadAllTables() {
       if (!token) return;
       const res = await fetch(`${API_BASE}/api/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -398,10 +411,13 @@
     function renderTableList() {
       const list = document.getElementById('table-list');
       list.innerHTML = allTables.map((t, idx) => `
-        <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition drag-item ${selectedTable === t.name ? 'bg-brand/10 text-brand font-medium' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-white'}" 
-            data-table="${t.name}" draggable="true"
-            ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">
-          <span class="flex-1 truncate drag-handle">📄 ${t.name}</span>
+        <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition drag-item ${selectedTable === t.name ? 'bg-brand/10 text-brand font-medium' : 'hover:bg-gray-100 dark:hover:bg-dark-box text-light-primary dark:text-dark-primary'}" 
+            data-table="${t.name}">
+          <span class="drag-handle mr-2" draggable="true" 
+                ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">
+            ⠿
+          </span>
+          <span class="flex-1 truncate" onclick="event.stopPropagation(); selectTable('${t.name}')">📄 ${t.name}</span>
           <div class="hidden group-hover:flex items-center space-x-1">
             <button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button>
             <button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button>
@@ -416,7 +432,8 @@
     function handleDragStart(e) {
       dragSrcTable = e.target.closest('.drag-item').dataset.table;
       e.dataTransfer.effectAllowed = 'move';
-      e.target.classList.add('dragging');
+      e.target.closest('.drag-item').classList.add('dragging');
+      e.stopPropagation();
     }
 
     function handleDragOver(e) {
@@ -431,7 +448,6 @@
       const targetTable = targetItem.dataset.table;
       if (dragSrcTable === targetTable) return;
 
-      // Reorder allTables array
       const srcIdx = allTables.findIndex(t => t.name === dragSrcTable);
       const destIdx = allTables.findIndex(t => t.name === targetTable);
       const [moved] = allTables.splice(srcIdx, 1);
@@ -439,10 +455,11 @@
 
       renderTableList();
       saveTableOrder();
+      dragSrcTable = null;
     }
 
     function handleDragEnd(e) {
-      e.target.classList.remove('dragging');
+      e.target.closest('.drag-item')?.classList.remove('dragging');
       dragSrcTable = null;
     }
 
@@ -475,23 +492,23 @@
       renderTable();
     }
 
-    // ================ INLINE EDITING ================
+    // ======= INLINE EDITING =======
     function makeEditable(cell, rowId, colName) {
       const oldValue = cell.textContent;
       const colMeta = currentColumns.find(c => c.name === colName);
       const type = colMeta ? colMeta.type : 'string';
       let inputHtml = '';
       if (['int','int8','integer','float','number'].includes(type)) {
-        inputHtml = `<input type="number" class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-white outline-none" value="${escapeHtml(oldValue)}" />`;
+        inputHtml = `<input type="number" class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-dark-box dark:text-dark-primary outline-none" value="${escapeHtml(oldValue)}" />`;
       } else if (['date','datetime'].includes(type)) {
-        inputHtml = `<input type="date" class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-white outline-none" value="${escapeHtml(oldValue)}" />`;
+        inputHtml = `<input type="date" class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-dark-box dark:text-dark-primary outline-none" value="${escapeHtml(oldValue)}" />`;
       } else if (type === 'boolean') {
-        inputHtml = `<select class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-white outline-none">
+        inputHtml = `<select class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-dark-box dark:text-dark-primary outline-none">
           <option value="true" ${oldValue === 'true' ? 'selected' : ''}>true</option>
           <option value="false" ${oldValue === 'false' ? 'selected' : ''}>false</option>
         </select>`;
       } else {
-        inputHtml = `<input class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-white outline-none" value="${escapeHtml(oldValue)}" />`;
+        inputHtml = `<input class="w-full border border-secondary rounded px-2 py-1 text-sm dark:bg-dark-box dark:text-dark-primary outline-none" value="${escapeHtml(oldValue)}" />`;
       }
       cell.innerHTML = inputHtml;
       const input = cell.querySelector('input, select');
@@ -522,7 +539,7 @@
       }
     }
 
-    // ================ ACTIONS DROPDOWN ================
+    // ======= ACTIONS DROPDOWN =======
     function toggleActionsDropdown(e, rowId) {
       e.stopPropagation();
       document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
@@ -572,12 +589,12 @@
         `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" onclick="sortTable('${c}')">${c} ${sortColumn === c ? (sortAsc?'▲':'▼') : '⇅'}</th>`
       ).join('')}<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th></tr>`;
       tbody.innerHTML = currentRows.length === 0 
-        ? `<tr><td colspan="${allCols.length+1}" class="px-4 py-6 text-center text-gray-400 dark:text-gray-500">No rows yet. Click 'Add Row' to create one.</td></tr>`
+        ? `<tr><td colspan="${allCols.length+1}" class="px-4 py-6 text-center text-light-secondary dark:text-dark-secondary">No rows yet. Click 'Add Row' to create one.</td></tr>`
         : currentRows.map(row => `
-          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+          <tr class="hover:bg-gray-50 dark:hover:bg-dark-box transition">
             ${allCols.map(c => `<td class="px-4 py-3 text-sm cursor-pointer" onclick="makeEditable(this,'${row.id}','${c}')">${escapeHtml(row[c] ?? '')}</td>`).join('')}
             <td class="px-4 py-3 relative">
-              <button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-gray-500 hover:text-gray-800 dark:hover:text-white text-lg">⋯</button>
+              <button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-light-secondary dark:text-dark-secondary hover:text-light-primary dark:hover:text-dark-primary text-lg">⋯</button>
               <div id="actions-${row.id}" class="action-dropdown">
                 <button onclick="duplicateRow('${row.id}')" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Duplicate</button>
                 <button onclick="copyRow('${row.id}')" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Copy row</button>
@@ -588,30 +605,27 @@
           </tr>`).join('');
     }
 
-    // ================ ADD ROW ================
+    // ======= ADD ROW =======
     function openAddRowModal() {
-      if (!selectedTable) {
-        showToast('Please select a table first', true);
-        return;
-      }
+      if (!selectedTable) { showToast('Please select a table first', true); return; }
       const fieldsDiv = document.getElementById('add-row-fields');
       fieldsDiv.innerHTML = currentColumns.map(c => {
         const type = c.type || 'string';
         let inputHtml = '';
         if (['int','int8','integer','float','number'].includes(type)) {
-          inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />`;
+          inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />`;
         } else if (['date','datetime'].includes(type)) {
-          inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />`;
+          inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />`;
         } else if (type === 'boolean') {
-          inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary">
             <option value="true">true</option>
             <option value="false">false</option>
           </select>`;
         } else {
-          inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />`;
+          inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />`;
         }
         return `<div>
-          <label class="block text-sm text-gray-600 dark:text-gray-300 mb-1">${c.name}</label>
+          <label class="block text-sm text-light-secondary dark:text-dark-secondary mb-1">${c.name}</label>
           ${inputHtml}
         </div>`;
       }).join('');
@@ -629,14 +643,8 @@
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
       });
-      if (res.ok) {
-        closeModal('add-row-modal');
-        fetchAndRenderRows();
-        showToast('Row added');
-      } else {
-        const err = await res.json();
-        showToast(err.error || 'Add failed', true);
-      }
+      if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); }
+      else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
     async function deleteRow(id) {
@@ -649,7 +657,7 @@
       else showToast('Delete failed', true);
     }
 
-    // ================ SORTING ================
+    // ======= SORTING =======
     function sortTable(col) {
       if (sortColumn === col) sortAsc = !sortAsc;
       else { sortColumn = col; sortAsc = true; }
@@ -662,7 +670,7 @@
       renderTable();
     }
 
-    // ================ TABLE CREATE ================
+    // ======= TABLE CREATE =======
     function openCreateTableModal() {
       document.getElementById('new-table-name').value = '';
       document.getElementById('new-columns').innerHTML = '';
@@ -674,8 +682,8 @@
     function addColumnField() {
       document.getElementById('new-columns').innerHTML += `
         <div class="flex items-center gap-2">
-          <input placeholder="Column name" class="column-name w-full border p-2 rounded-lg text-sm focus:ring-2 focus:ring-brand outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-          <select class="column-type border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          <input placeholder="Column name" class="column-name w-full border p-2 rounded-lg text-sm focus:ring-2 focus:ring-brand outline-none dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
+          <select class="column-type border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary">
             ${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
           <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>
@@ -713,7 +721,7 @@
       }
     }
 
-    // ================ DELETE / RENAME TABLE ================
+    // ======= DELETE / RENAME TABLE =======
     function openDeleteTableModal(name) {
       tableToDelete = name;
       document.getElementById('delete-table-name').textContent = name;
@@ -770,7 +778,7 @@
       }
     }
 
-    // ================ EDIT TABLE SCHEMA ================
+    // ======= EDIT TABLE SCHEMA =======
     function openEditTableModal(name) {
       const table = allTables.find(t => t.name === (name || selectedTable));
       if (!table) return;
@@ -778,8 +786,8 @@
       const container = document.getElementById('edit-columns');
       container.innerHTML = table.columns.map(c => `
         <div class="flex items-center gap-2">
-          <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
+          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary">
             ${COLUMN_TYPES.map(t => `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}
           </select>
           <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>
@@ -791,8 +799,8 @@
     function addEditColumnField() {
       document.getElementById('edit-columns').innerHTML += `
         <div class="flex items-center gap-2">
-          <input placeholder="Column name" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          <input placeholder="Column name" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary" />
+          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-dark-box dark:border-gray-600 dark:text-dark-primary">
             ${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
           <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>
@@ -816,8 +824,8 @@
       });
       if (res.ok) {
         closeModal('edit-table-modal');
-        loadAllTables();
-        if (selectedTable === name) selectTable(name);
+        await loadAllTables(); // refresh allTables
+        if (selectedTable === name) selectTable(name); // re-select to update columns
         showToast('Schema updated');
       } else {
         const err = await res.json();
@@ -825,7 +833,7 @@
       }
     }
 
-    // ================ PRIVACY RULES ================
+    // ======= PRIVACY RULES =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -848,13 +856,13 @@
           const opVal = parts[1]||'';
           const value = parts.slice(2).join(' ')||'';
           return `<div class="flex flex-wrap items-center gap-1 p-1 border rounded dark:border-gray-600 mb-1">
-            <select class="flex-1 min-w-[100px] text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyField('${op}',${idx},this.value)">
+            <select class="flex-1 min-w-[100px] text-sm border p-1 rounded dark:bg-dark-box dark:text-dark-primary" onchange="updatePrivacyField('${op}',${idx},this.value)">
               ${currentColumns.map(c => `<option value="${c.name}" ${field===c.name?'selected':''}>${c.name}</option>`).join('')}
             </select>
-            <select class="w-20 text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyOp('${op}',${idx},this.value)">
+            <select class="w-20 text-sm border p-1 rounded dark:bg-dark-box dark:text-dark-primary" onchange="updatePrivacyOp('${op}',${idx},this.value)">
               ${OPERATORS.map(o => `<option value="${o}" ${opVal===o?'selected':''}>${o}</option>`).join('')}
             </select>
-            <select class="flex-1 min-w-[120px] text-sm border p-1 rounded dark:bg-gray-700 dark:text-white" onchange="updatePrivacyValue('${op}',${idx},this.value)">
+            <select class="flex-1 min-w-[120px] text-sm border p-1 rounded dark:bg-dark-box dark:text-dark-primary" onchange="updatePrivacyValue('${op}',${idx},this.value)">
               <option value="@user_id" ${value==='@user_id'?'selected':''}>@user_id</option>
               <optgroup label="Other tables">
                 ${allTables.filter(t => t.name !== selectedTable).map(t => 
@@ -865,7 +873,7 @@
             <button onclick="removePrivacyRule('${op}',${idx})" class="text-red-400 hover:text-red-600 text-lg">✕</button>
           </div>`;
         }).join('');
-        if (privacyRules[op].length === 0) container.innerHTML = '<p class="text-sm text-gray-400 dark:text-gray-500">No conditions</p>';
+        if (privacyRules[op].length === 0) container.innerHTML = '<p class="text-sm text-light-secondary dark:text-dark-secondary">No conditions</p>';
       });
     }
 
@@ -895,7 +903,7 @@
       showToast('Privacy rules saved');
     }
 
-    // ================ API DOCS ================
+    // ======= API DOCS =======
     function toggleApiToken() {
       showRealToken = !showRealToken;
       openApiModal();
@@ -931,9 +939,9 @@ const data = await res.json();`
   body: JSON.stringify(${JSON.stringify(exampleFields)})
 });
 const data = await res.json();`;
-        return `<div class="border dark:border-gray-600 rounded-lg p-4">
-          <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-gray-800 dark:text-white">${m.url}</code></div>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">${m.desc}</p>
+        return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+          <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-light-primary dark:text-dark-primary">${m.url}</code></div>
+          <p class="text-sm text-light-secondary dark:text-dark-secondary mb-3">${m.desc}</p>
           <details class="mb-2"><summary class="text-sm text-brand hover:text-secondary cursor-pointer">cURL</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(curlEx)}</code></pre><button onclick="copyText('${escapeHtml(curlEx)}', this)" class="text-xs text-brand mt-1 hover:underline">Copy</button></details>
           <details><summary class="text-sm text-brand hover:text-secondary cursor-pointer">Node.js</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(nodeEx)}</code></pre><button onclick="copyText('${escapeHtml(nodeEx)}', this)" class="text-xs text-brand mt-1 hover:underline">Copy</button></details>
         </div>`;
@@ -942,7 +950,7 @@ const data = await res.json();`;
     }
     function copyText(text, btn) { navigator.clipboard.writeText(text).then(() => { btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy',2000); }); }
 
-    // ================ WEBOOKS ================
+    // ======= WEBOOKS =======
     async function openWebhooksModal() {
       if (!selectedTable) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
@@ -954,10 +962,10 @@ const data = await res.json();`;
       const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const hooks = await res.json();
       document.getElementById('webhook-list').innerHTML = hooks.length ? hooks.map(h => `
-        <li class="flex justify-between items-center text-sm border-b pb-2 dark:border-gray-600 dark:text-gray-200">
+        <li class="flex justify-between items-center text-sm border-b pb-2 dark:border-gray-600 dark:text-dark-primary">
           <span>${h.event} → ${h.url}</span>
           <button onclick="deleteWebhook(${h.id})" class="text-red-400 hover:text-red-600">✕</button>
-        </li>`).join('') : '<li class="text-gray-400 dark:text-gray-500">No webhooks yet.</li>';
+        </li>`).join('') : '<li class="text-light-secondary dark:text-dark-secondary">No webhooks yet.</li>';
     }
     async function addWebhook() {
       const url = document.getElementById('webhook-url').value.trim();
@@ -977,18 +985,18 @@ const data = await res.json();`;
       showToast('Webhook removed');
     }
 
-    // ================ LOGS ================
+    // ======= LOGS =======
     function toggleLogsModal() { document.getElementById('logs-modal').classList.toggle('active'); }
     function appendLog(msg) {
       const logDiv = document.getElementById('logs-content');
       const p = document.createElement('p');
-      p.className = 'text-xs border-b pb-1 mb-1 dark:border-gray-600 dark:text-gray-200';
+      p.className = 'text-xs border-b pb-1 mb-1 dark:border-gray-600 dark:text-dark-secondary';
       p.textContent = msg;
       logDiv.prepend(p);
       if (logDiv.children.length > 50) logDiv.lastChild.remove();
     }
 
-    // ================ EXPORT CSV ================
+    // ======= EXPORT CSV =======
     function exportCSV() {
       if (!selectedTable || !currentRows.length) return showToast('No data', true);
       const cols = ['id', ...currentColumns.map(c=>c.name)];
@@ -1001,7 +1009,7 @@ const data = await res.json();`;
       showToast('CSV exported');
     }
 
-    // ================ WEBSOCKET ================
+    // ======= WEBSOCKET =======
     function connectWebSocket() {
       if (ws) ws.close();
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1021,7 +1029,7 @@ const data = await res.json();`;
       ws.onclose = () => setTimeout(connectWebSocket, 3000);
     }
 
-    // ================ HELPERS ================
+    // ======= HELPERS =======
     function escapeHtml(text) {
       if (text === null || text === undefined) return '';
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
