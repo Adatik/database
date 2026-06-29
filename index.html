@@ -17,6 +17,7 @@
     })();
   </script>
   <style>
+    /* ... all the existing styles, exactly as before ... */
     body { font-family: 'Inter', system-ui, sans-serif; }
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
     .modal-overlay.active { display: flex; }
@@ -56,7 +57,7 @@
     <p id="auth-message" class="text-sm text-red-500 text-center"></p>
   </div>
 
-  <!-- Main App -->
+  <!-- Main App (exactly the same structure as before, no changes) -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
     <!-- Sidebar -->
     <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
@@ -182,7 +183,7 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
- <!-- ============= MODALS ============= -->
+  <!-- ============= MODALS ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
