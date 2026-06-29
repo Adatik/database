@@ -38,7 +38,6 @@
     .dark .filter-panel { background: #1A1F24; border-color: #374151; }
     select { border-color: #324380; border-radius: 6px; }
     select:focus { border-color: #091747; outline: none; }
-    /* Webhook styles */
     .webhook-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
     .dark .webhook-item { border-color: #374151; }
   </style>
@@ -183,7 +182,8 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
-   <!-- Create Table Modal -->
+ <!-- ============= MODALS ============= -->
+  <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3>
@@ -246,12 +246,10 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (with column permissions) -->
+  <!-- Privacy Modal -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
-      
-      <!-- Row-level conditions -->
       <div class="mb-6">
         <h4 class="font-medium text-[#101213] dark:text-white mb-2">Row‑level rules</h4>
         <div class="overflow-x-auto">
@@ -271,8 +269,6 @@
         </div>
         <button onclick="addPrivacyRuleRow()" class="mt-2 text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add rule</button>
       </div>
-
-      <!-- Column-level permissions -->
       <div>
         <h4 class="font-medium text-[#101213] dark:text-white mb-2">Column‑level permissions</h4>
         <div class="overflow-x-auto">
@@ -289,7 +285,6 @@
           </table>
         </div>
       </div>
-
       <div class="flex gap-2 mt-4">
         <button onclick="savePrivacyRules()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Save Rules</button>
         <button onclick="closeModal('privacy-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
@@ -301,11 +296,7 @@
   <div id="webhooks-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Webhooks for <span id="webhooks-table-name"></span></h3>
-      
-      <!-- Existing webhooks list -->
       <div id="webhook-list" class="space-y-3 mb-6"></div>
-
-      <!-- Add new webhook form -->
       <div class="border-2 border-[#324380] rounded-lg p-4">
         <h4 class="font-medium text-[#101213] dark:text-white mb-3">Add Webhook</h4>
         <div class="space-y-3">
@@ -416,7 +407,7 @@
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
     let privacyRules = [];
-    let columnPermissions = {}; // { read: [], write: [], update: [] }
+    let columnPermissions = { read: [], write: [], update: [] };
     let showRealToken = false;
     let currentPage = 1;
     let rowsPerPage = 10;
@@ -473,31 +464,54 @@
       try { return JSON.parse(atob(token.split('.')[1])).email || ''; } catch { return ''; }
     }
 
-    async function handleAuthResponse(res) {
-      const data = await res.json();
-      if (res.ok) {
-        token = data.token;
-        localStorage.setItem('token', token);
-        showApp();
-      } else showAuthMessage(data.error);
-    }
-
     async function signUp() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      const res = await fetch(`${API_BASE}/api/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
-      });
-      handleAuthResponse(res);
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          token = data.token;
+          localStorage.setItem('token', token);
+          showAuthMessage('');
+          showApp();
+        } else {
+          showAuthMessage(data.error || 'Registration failed.');
+        }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     async function signIn() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
-      });
-      handleAuthResponse(res);
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          token = data.token;
+          localStorage.setItem('token', token);
+          showAuthMessage('');
+          showApp();
+        } else {
+          showAuthMessage(data.error || 'Invalid credentials.');
+        }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     function signOut() {
@@ -548,15 +562,51 @@
       `).join('');
     }
 
-    // (Drag & drop functions unchanged)
     let dragSrcTable = null;
-    function handleDragStart(e) { ... }
-    function handleDragOver(e) { ... }
-    function handleDrop(e) { ... }
-    function handleDragEnd(e) { ... }
-    async function saveTableOrder() { ... }
 
-    // ======= SELECT TABLE =======
+    function handleDragStart(e) {
+      dragSrcTable = e.target.closest('.drag-item').dataset.table;
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.closest('.drag-item').classList.add('dragging');
+      e.stopPropagation();
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      const targetItem = e.target.closest('.drag-item');
+      if (!targetItem || !dragSrcTable) return;
+      const targetTable = targetItem.dataset.table;
+      if (dragSrcTable === targetTable) return;
+
+      const srcIdx = allTables.findIndex(t => t.name === dragSrcTable);
+      const destIdx = allTables.findIndex(t => t.name === targetTable);
+      const [moved] = allTables.splice(srcIdx, 1);
+      allTables.splice(destIdx, 0, moved);
+
+      renderTableList();
+      saveTableOrder();
+      dragSrcTable = null;
+    }
+
+    function handleDragEnd(e) {
+      e.target.closest('.drag-item')?.classList.remove('dragging');
+      dragSrcTable = null;
+    }
+
+    async function saveTableOrder() {
+      const order = allTables.map(t => t.name);
+      await fetch(`${API_BASE}/api/tables/order`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ order })
+      });
+    }
+
     function selectTable(name) {
       selectedTable = name;
       localStorage.setItem('selectedTable', name);
@@ -574,23 +624,159 @@
     }
 
     async function fetchAndRenderRows() {
-      // (unchanged – uses filters, pagination)
+      if (!selectedTable) return;
+      const limit = rowsPerPage;
+      const offset = (currentPage - 1) * limit;
+      let url = `${API_BASE}/api/data/${selectedTable}?limit=${limit}&offset=${offset}`;
+      if (sortColumn) {
+        url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`;
+      }
+      activeFilters.forEach((f, i) => {
+        url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
+      });
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.status === 401) { signOut(); return; }
+      currentRows = await res.json();
+
+      let countUrl = `${API_BASE}/api/data/${selectedTable}?count=true`;
+      activeFilters.forEach((f, i) => {
+        countUrl += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
+      });
+      const countRes = await fetch(countUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (countRes.ok) {
+        const { count } = await countRes.json();
+        totalRows = count;
+      }
+      renderTable();
+      renderPagination();
+      updateBulkBar();
     }
 
-    function renderPagination() { ... }
-    function prevPage() { ... }
-    function nextPage() { ... }
-    function changeRowsPerPage() { ... }
+    function renderPagination() {
+      const totalPages = Math.ceil(totalRows / rowsPerPage);
+      const start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+      const end = Math.min(currentPage * rowsPerPage, totalRows);
+      document.getElementById('page-start').textContent = start;
+      document.getElementById('page-end').textContent = end;
+      document.getElementById('total-rows').textContent = totalRows;
+      const pageNumbers = document.getElementById('page-numbers');
+      pageNumbers.innerHTML = '';
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.textContent = i;
+        btn.className = `px-3 py-1 border rounded text-sm ${i === currentPage ? 'bg-[#091747] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`;
+        btn.onclick = () => { currentPage = i; fetchAndRenderRows(); };
+        pageNumbers.appendChild(btn);
+      }
+    }
 
-    // ======= BULK OPERATIONS =======
-    function toggleSelectAll(source) { ... }
-    function toggleRowSelection(id, checked) { ... }
-    function updateBulkBar() { ... }
-    async function bulkDelete() { ... }
-    async function bulkDuplicate() { ... }
-    function openBulkEditModal() { ... }
+    function prevPage() {
+      if (currentPage > 1) { currentPage--; fetchAndRenderRows(); }
+    }
+    function nextPage() {
+      const totalPages = Math.ceil(totalRows / rowsPerPage);
+      if (currentPage < totalPages) { currentPage++; fetchAndRenderRows(); }
+    }
+
+    function changeRowsPerPage() {
+      rowsPerPage = parseInt(document.getElementById('rows-per-page').value);
+      currentPage = 1;
+      fetchAndRenderRows();
+    }
+
+    // ======= BULK SELECTION =======
+    function toggleSelectAll(source) {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = source.checked;
+        const id = cb.dataset.id;
+        if (source.checked) selectedRows.add(id);
+        else selectedRows.delete(id);
+      });
+      updateBulkBar();
+    }
+
+    function toggleRowSelection(id, checked) {
+      if (checked) selectedRows.add(id);
+      else selectedRows.delete(id);
+      updateBulkBar();
+    }
+
+    function updateBulkBar() {
+      const count = selectedRows.size;
+      document.getElementById('selected-count').textContent = count;
+      document.getElementById('total-row-count').textContent = currentRows.length;
+      if (count > 0) {
+        document.getElementById('bulk-bar').classList.remove('hidden');
+      } else {
+        document.getElementById('bulk-bar').classList.add('hidden');
+      }
+    }
+
+    async function bulkDelete() {
+      if (selectedRows.size === 0) return;
+      if (!confirm(`Delete ${selectedRows.size} row(s)?`)) return;
+      const ids = Array.from(selectedRows);
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ids })
+      });
+      if (res.ok) {
+        selectedRows.clear();
+        fetchAndRenderRows();
+        showToast('Deleted');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
+      }
+    }
+
+    async function bulkDuplicate() {
+      if (selectedRows.size === 0) return;
+      const ids = Array.from(selectedRows);
+      for (const id of ids) {
+        const row = currentRows.find(r => r.id == id);
+        if (!row) continue;
+        const body = {};
+        currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
+        await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+      }
+      selectedRows.clear();
+      fetchAndRenderRows();
+      showToast('Duplicated');
+    }
+
+    function openBulkEditModal() {
+      if (selectedRows.size === 0) return;
+      const colSelect = document.getElementById('bulk-edit-column');
+      colSelect.innerHTML = currentColumns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+      document.getElementById('bulk-edit-value').value = '';
+      document.getElementById('bulk-edit-modal').classList.add('active');
+    }
+
     async function confirmBulkEdit() {
-      // (unchanged – sends to /api/data/:table/bulk/update)
+      const field = document.getElementById('bulk-edit-column').value;
+      const value = document.getElementById('bulk-edit-value').value;
+      const ids = Array.from(selectedRows);
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ids, field, value })
+      });
+      if (res.ok) {
+        selectedRows.clear();
+        closeModal('bulk-edit-modal');
+        fetchAndRenderRows();
+        showToast('Updated');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
+      }
     }
 
     // ======= RENDER TABLE =======
@@ -628,7 +814,6 @@
 
     // ======= INLINE EDIT POPUP =======
     function showEditPopup(cell, rowId, colName) {
-      // Remove any existing popup
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
       const oldValue = cell.textContent;
       const colMeta = currentColumns.find(c => c.name === colName);
@@ -663,7 +848,6 @@
         if (e.key === 'Enter') saveEditFromPopup(rowId, colName, input.value, popup);
         if (e.key === 'Escape') popup.remove();
       });
-      // Close on outside click
       setTimeout(() => {
         document.addEventListener('click', function closePopup(e) {
           if (!popup.contains(e.target) && e.target !== cell) {
@@ -709,7 +893,56 @@
       }
     }
 
-    // (copy, duplicate, paste, delete row functions unchanged)
+    function copyRow(rowId) {
+      const row = currentRows.find(r => r.id == rowId);
+      if (!row) return;
+      const { id, user_id, ...data } = row;
+      copiedRowData = data;
+      showToast('Row data copied.');
+      document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
+    }
+
+    async function duplicateRow(rowId) {
+      const row = currentRows.find(r => r.id == rowId);
+      if (!row) return;
+      const body = {};
+      currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) { fetchAndRenderRows(); showToast('Row duplicated'); }
+      else { const err = await res.json(); showToast(err.error || 'Duplicate failed', true); }
+    }
+
+    async function pasteRow() {
+      if (!copiedRowData) return;
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(copiedRowData)
+      });
+      if (res.ok) { fetchAndRenderRows(); showToast('Row pasted'); copiedRowData = null; }
+      else { const err = await res.json(); showToast(err.error || 'Paste failed', true); }
+    }
+
+    async function deleteRow(id) {
+      if (!confirm('Delete this row permanently?')) return;
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) { fetchAndRenderRows(); showToast('Row deleted'); }
+      else showToast('Delete failed', true);
+    }
+
+    // ======= SORTING =======
+    function sortTable(col) {
+      if (sortColumn === col) sortAsc = !sortAsc;
+      else { sortColumn = col; sortAsc = true; }
+      fetchAndRenderRows();
+    }
 
     // ======= SEARCH & FILTER =======
     function applySearch() {
@@ -835,6 +1068,63 @@
       }
     }
 
+    // ======= DELETE / RENAME TABLE =======
+    function openDeleteTableModal(name) {
+      tableToDelete = name;
+      document.getElementById('delete-table-name').textContent = name;
+      document.getElementById('delete-confirm-input').value = '';
+      document.getElementById('delete-table-error').classList.add('hidden');
+      document.getElementById('delete-table-modal').classList.add('active');
+    }
+    function copyTableName() { navigator.clipboard.writeText(tableToDelete); showToast('Name copied'); }
+    async function confirmDeleteTable() {
+      if (document.getElementById('delete-confirm-input').value.trim() !== tableToDelete) {
+        document.getElementById('delete-table-error').textContent = 'Name does not match.';
+        document.getElementById('delete-table-error').classList.remove('hidden');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/tables/${tableToDelete}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        closeModal('delete-table-modal');
+        if (selectedTable === tableToDelete) { selectedTable = null; localStorage.removeItem('selectedTable'); }
+        loadAllTables();
+        showToast('Table deleted');
+      } else {
+        const err = await res.json();
+        document.getElementById('delete-table-error').textContent = err.error || 'Deletion failed';
+        document.getElementById('delete-table-error').classList.remove('hidden');
+      }
+    }
+    function openRenameTableModal(name) {
+      tableToRename = name;
+      document.getElementById('rename-table-input').value = name;
+      document.getElementById('rename-table-error').classList.add('hidden');
+      document.getElementById('rename-table-modal').classList.add('active');
+    }
+    async function confirmRenameTable() {
+      const newName = document.getElementById('rename-table-input').value.trim();
+      if (!newName || newName === tableToRename) {
+        document.getElementById('rename-table-error').textContent = 'Enter a different name.';
+        document.getElementById('rename-table-error').classList.remove('hidden');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/tables/${tableToRename}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ newName })
+      });
+      if (res.ok) {
+        closeModal('rename-table-modal');
+        if (selectedTable === tableToRename) selectedTable = newName;
+        loadAllTables();
+        showToast('Table renamed');
+      } else {
+        const err = await res.json();
+        document.getElementById('rename-table-error').textContent = err.error || 'Rename failed';
+        document.getElementById('rename-table-error').classList.remove('hidden');
+      }
+    }
+
     // ======= EDIT TABLE SCHEMA =======
     function openEditTableModal(name) {
       const table = allTables.find(t => t.name === (name || selectedTable));
@@ -867,7 +1157,30 @@
     }
 
     async function saveTableSchema() {
-      // (unchanged – sends to /api/tables/:name/schema)
+      const name = document.getElementById('edit-table-name').textContent;
+      const nameInputs = document.querySelectorAll('.edit-col-name');
+      const typeSelects = document.querySelectorAll('.edit-col-type');
+      const defaultInputs = document.querySelectorAll('.edit-col-default');
+      const cols = [];
+      for (let i = 0; i < nameInputs.length; i++) {
+        const cn = nameInputs[i].value.trim();
+        if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value });
+      }
+      if (cols.length === 0) return showToast('At least one column required', true);
+      const res = await fetch(`${API_BASE}/api/tables/${name}/schema`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ columns: cols })
+      });
+      if (res.ok) {
+        closeModal('edit-table-modal');
+        await loadAllTables();
+        if (selectedTable === name) selectTable(name);
+        showToast('Schema updated');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Update failed', true);
+      }
     }
 
     // ======= ADD ROW =======
@@ -899,7 +1212,18 @@
     }
 
     async function confirmAddRow() {
-      // (unchanged)
+      const body = {};
+      currentColumns.forEach(c => {
+        const el = document.getElementById(`modal-add-${c.name}`);
+        if (el) body[c.name] = el.value;
+      });
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); }
+      else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
     // ======= PRIVACY & COLUMN PERMISSIONS =======
@@ -908,7 +1232,6 @@
       document.getElementById('privacy-table-name').textContent = selectedTable;
       const table = allTables.find(t => t.name === selectedTable);
       const priv = table?.privacy || {};
-      // Row-level rules
       privacyRules = [];
       const ops = ['read', 'write', 'update', 'delete'];
       ops.forEach(op => {
@@ -927,7 +1250,6 @@
       });
       if (privacyRules.length === 0) privacyRules.push({ condition: `${currentColumns[0]?.name || 'id'} eq @user_id`, read: false, write: false, update: false, delete: false });
 
-      // Column permissions
       const colPerms = table?.column_permissions || {};
       columnPermissions = {
         read: colPerms.read || currentColumns.map(c => c.name),
@@ -952,7 +1274,6 @@
               <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
                 ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c.name))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
               </select>
-              <!-- Value: dropdown or manual -->
               <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" style="border-color:#324380;" onchange="updatePrivacyValue(${idx}, this.value)">
                 <option value="@user_id" ${rule.condition.includes('@user_id') ? 'selected' : ''}>@user_id</option>
                 <optgroup label="Other tables">
@@ -992,7 +1313,39 @@
       }
     }
 
-    // (Other privacy functions unchanged: addPrivacyRuleRow, deletePrivacyRule, update...)
+    function addPrivacyRuleRow() {
+      const defaultCol = currentColumns[0]?.name || 'id';
+      privacyRules.push({ condition: `${defaultCol} eq @user_id`, read: false, write: false, update: false, delete: false });
+      renderPrivacyTable();
+    }
+
+    function updatePrivacyCondition(idx, selectEl) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[0] = selectEl.value;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function updatePrivacyOperator(idx, op) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[1] = op;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function updatePrivacyValue(idx, value) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[2] = value;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function togglePrivacyOp(idx, op, checked) {
+      privacyRules[idx][op] = checked;
+    }
+
+    function deletePrivacyRule(idx) {
+      privacyRules.splice(idx, 1);
+      renderPrivacyTable();
+    }
+
     async function savePrivacyRules() {
       const payload = { read: '', write: '', update: '', delete: '' };
       ['read','write','update','delete'].forEach(op => {
@@ -1010,7 +1363,52 @@
     }
 
     // ======= API DOCS =======
-    // (unchanged)
+    function toggleApiToken() {
+      showRealToken = !showRealToken;
+      openApiModal();
+    }
+
+    function openApiModal() {
+      if (!selectedTable) return;
+      document.getElementById('api-table-name').textContent = selectedTable;
+      const base = API_BASE;
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+      const firstCol = currentColumns[0]?.name || 'id';
+      const methods = [
+        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows (supports filtering/sorting/pagination)' },
+        { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+      const tokenDisplay = showRealToken && token ? token : 'YOUR_TOKEN';
+      document.getElementById('api-content').innerHTML = methods.map(m => {
+        const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+        const curlEx = m.method === 'GET'
+          ? `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`
+          : `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
+        const nodeEx = m.method === 'GET'
+          ? `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {
+  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }
+});
+const data = await res.json();`
+          : `const res = await fetch('${base}${m.url}', {
+  method: '${m.method}',
+  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },
+  body: JSON.stringify(${JSON.stringify(exampleFields)})
+});
+const data = await res.json();`;
+        return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+          <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+          <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+          <details class="mb-2"><summary class="text-sm text-[#091747] hover:text-[#324380] cursor-pointer">cURL</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(curlEx)}</code></pre><button onclick="copyText('${escapeHtml(curlEx)}', this)" class="text-xs text-[#091747] mt-1 hover:underline">Copy</button></details>
+          <details><summary class="text-sm text-[#091747] hover:text-[#324380] cursor-pointer">Node.js</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto"><code>${escapeHtml(nodeEx)}</code></pre><button onclick="copyText('${escapeHtml(nodeEx)}', this)" class="text-xs text-[#091747] mt-1 hover:underline">Copy</button></details>
+        </div>`;
+      }).join('');
+      document.getElementById('api-modal').classList.add('active');
+    }
+
+    function copyText(text, btn) { navigator.clipboard.writeText(text).then(() => { btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy',2000); }); }
 
     // ======= WEBOOKS =======
     async function openWebhooksModal() {
@@ -1088,13 +1486,48 @@
     }
 
     // ======= LOGS =======
-    // (unchanged)
+    function toggleLogsModal() { document.getElementById('logs-modal').classList.toggle('active'); }
+    function appendLog(msg) {
+      const logDiv = document.getElementById('logs-content');
+      const p = document.createElement('p');
+      p.className = 'text-xs border-b pb-1 mb-1 dark:border-gray-600 dark:text-[#95A1AC]';
+      p.textContent = msg;
+      logDiv.prepend(p);
+      if (logDiv.children.length > 50) logDiv.lastChild.remove();
+    }
 
     // ======= EXPORT CSV =======
-    // (unchanged)
+    function exportCSV() {
+      if (!selectedTable || !currentRows.length) return showToast('No data', true);
+      const cols = ['id', ...currentColumns.map(c=>c.name)];
+      const csv = cols.join(',') + '\n' + currentRows.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${selectedTable}.csv`;
+      a.click();
+      showToast('CSV exported');
+    }
 
     // ======= WEBSOCKET =======
-    // (unchanged)
+    function connectWebSocket() {
+      if (ws) ws.close();
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token }));
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'item_change') {
+          let text = `[${msg.table}] ${msg.event}: `;
+          if (msg.event === 'update') text += `old=${JSON.stringify(msg.old)} → new=${JSON.stringify(msg.new)}`;
+          else if (msg.event === 'delete') text += `old=${JSON.stringify(msg.old)}`;
+          else text += `new=${JSON.stringify(msg.new)}`;
+          appendLog(text);
+          if (msg.table === selectedTable) fetchAndRenderRows();
+        }
+      };
+      ws.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
 
     // ======= HELPERS =======
     function escapeHtml(text) {
