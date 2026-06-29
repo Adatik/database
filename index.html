@@ -59,6 +59,7 @@
     .dark .mini-perms-table th, .dark .mini-perms-table td { border-color: #374151; }
     .mini-perms-table th { background: #F1F4F8; }
     .dark .mini-perms-table th { background: #1A1F24; }
+    .opacity-70 { opacity: 0.7; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -264,7 +265,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (redesigned with per-rule mini table) -->
+  <!-- Privacy Modal (redesigned) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -390,7 +391,7 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Each privacy rule: { condition, read, write, update, delete, columns: { read:[], write:[], update:[] } }
+    // Each privacy rule: { condition, columns: { read:[], write:[], update:[], delete:[] } }
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
@@ -451,10 +452,7 @@
     async function signUp() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) {
-        showAuthMessage('Please fill in both fields.');
-        return;
-      }
+      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
         const res = await fetch(`${API_BASE}/api/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -468,18 +466,13 @@
         } else {
           showAuthMessage(data.error || 'Registration failed.');
         }
-      } catch (err) {
-        showAuthMessage('Network error.');
-      }
+      } catch (err) { showAuthMessage('Network error.'); }
     }
 
     async function signIn() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) {
-        showAuthMessage('Please fill in both fields.');
-        return;
-      }
+      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
         const res = await fetch(`${API_BASE}/api/login`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -493,9 +486,7 @@
         } else {
           showAuthMessage(data.error || 'Invalid credentials.');
         }
-      } catch (err) {
-        showAuthMessage('Network error.');
-      }
+      } catch (err) { showAuthMessage('Network error.'); }
     }
 
     function signOut() {
@@ -822,7 +813,7 @@
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
     }
 
-    // ======= ACTIONS DROPDOWN (fixed: moved to body) =======
+    // ======= ACTIONS DROPDOWN =======
     function toggleActionsDropdown(e, rowId) {
       e.stopPropagation();
       const existing = document.querySelector('.action-dropdown.show');
@@ -1164,27 +1155,26 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (redesigned with per-rule mini table) =======
+    // ======= PRIVACY (redesigned with only column permissions) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
       const table = allTables.find(t => t.name === selectedTable);
       const priv = table?.privacy || {};
       privacyRules = [];
+      // Convert existing rules
       const ops = ['read', 'write', 'update', 'delete'];
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
             const existing = privacyRules.find(r => r.condition === condition);
             if (existing) {
-              existing[op] = true;
+              // merge column permissions if needed, but we'll just keep first
             } else {
               const newRule = {
                 condition,
-                read: false, write: false, update: false, delete: false,
-                columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)] }
+                columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)], delete: [...currentColumns.map(c=>c.name)] }
               };
-              newRule[op] = true;
               privacyRules.push(newRule);
             }
           });
@@ -1193,8 +1183,7 @@
       if (privacyRules.length === 0) {
         privacyRules.push({
           condition: `${currentColumns[0]?.name || 'id'} eq @user_id`,
-          read: false, write: false, update: false, delete: false,
-          columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)] }
+          columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)], delete: [] }
         });
       }
       renderPrivacyCards();
@@ -1221,50 +1210,55 @@
                 ).join('')}
               </optgroup>
             </select>
+            <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" placeholder="Or type value" value="" onchange="if(this.value) updatePrivacyValueManual(${idx}, this.value)" style="border-color:#324380;">
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
           </div>
-          <div class="flex gap-4">
-            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.read ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'read', this.checked)"> Read</label>
-            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.write ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'write', this.checked)"> Write</label>
-            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.update ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'update', this.checked)"> Update</label>
-            <label class="flex items-center gap-1 text-sm"><input type="checkbox" ${rule.delete ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'delete', this.checked)"> Delete</label>
-          </div>
-          <div class="mt-3">
-            <p class="text-xs text-[#57636C] dark:text-[#95A1AC] mb-1">Column permissions for this rule:</p>
-            <table class="mini-perms-table">
-              <thead>
+          <table class="mini-perms-table">
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Read <input type="checkbox" onchange="checkAllPerms(this, 'read', ${idx})" class="ml-1"></th>
+                <th>Write <input type="checkbox" onchange="checkAllPerms(this, 'write', ${idx})" class="ml-1"></th>
+                <th>Update <input type="checkbox" onchange="checkAllPerms(this, 'update', ${idx})" class="ml-1"></th>
+                <th class="opacity-70">Delete <input type="checkbox" onchange="checkAllPerms(this, 'delete', ${idx})" class="ml-1 opacity-70"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allCols.map(c => `
                 <tr>
-                  <th>Column</th>
-                  <th>Read</th>
-                  <th>Write</th>
-                  <th>Update</th>
+                  <td>${c}</td>
+                  <td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td>
+                  <td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td>
+                  <td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td>
+                  <td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td>
                 </tr>
-              </thead>
-              <tbody>
-                ${allCols.map(c => `
-                  <tr>
-                    <td>${c}</td>
-                    <td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td>
-                    <td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td>
-                    <td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
+              `).join('')}
+            </tbody>
+          </table>
         </div>
       `).join('');
+    }
+
+    function checkAllPerms(cb, op, idx) {
+      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      allCols.forEach(col => {
+        toggleRuleColumn(col, op, idx, cb.checked);
+        // update checkbox in DOM
+        const checkboxes = document.querySelectorAll(`.privacy-rule-card:has(.mini-perms-table) .mini-perms-table input[type="checkbox"]`);
+        // We'll just re-render to be safe
+      });
+      renderPrivacyCards();
     }
 
     function addPrivacyRuleCard() {
       const defaultCol = currentColumns[0]?.name || 'id';
       privacyRules.push({
         condition: `${defaultCol} eq @user_id`,
-        read: false, write: false, update: false, delete: false,
         columns: {
-          read: [...currentColumns.map(c=>c.name), 'id'],
-          write: [...currentColumns.map(c=>c.name), 'id'],
-          update: [...currentColumns.map(c=>c.name), 'id']
+          read: [...currentColumns.map(c=>c.name)],
+          write: [...currentColumns.map(c=>c.name)],
+          update: [...currentColumns.map(c=>c.name)],
+          delete: []
         }
       });
       renderPrivacyCards();
@@ -1297,8 +1291,8 @@
       privacyRules[idx].condition = parts.join(' ');
     }
 
-    function togglePrivacyOp(idx, op, checked) {
-      privacyRules[idx][op] = checked;
+    function updatePrivacyValueManual(idx, value) {
+      updatePrivacyValue(idx, value);
     }
 
     function deletePrivacyRule(idx) {
@@ -1307,20 +1301,24 @@
     }
 
     async function savePrivacyRules() {
-      const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [] } };
+      // Build payload: conditions for each operation based on which rules have columns for that operation
+      const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
       ['read','write','update','delete'].forEach(op => {
-        payload[op] = privacyRules.filter(r => r[op]).map(r => r.condition).join(' AND ');
+        const activeConditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition);
+        payload[op] = activeConditions.join(' AND ');
       });
-      const globalCols = { read: new Set(), write: new Set(), update: new Set() };
+      // Column permissions: union of all rules' allowed columns per operation
+      const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() };
       privacyRules.forEach(rule => {
-        ['read','write','update'].forEach(op => {
+        ['read','write','update','delete'].forEach(op => {
           rule.columns[op].forEach(c => globalCols[op].add(c));
         });
       });
       payload.column_permissions = {
         read: Array.from(globalCols.read),
         write: Array.from(globalCols.write),
-        update: Array.from(globalCols.update)
+        update: Array.from(globalCols.update),
+        delete: Array.from(globalCols.delete)
       };
       await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
         method: 'PUT',
