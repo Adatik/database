@@ -14,16 +14,19 @@ services:
       - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
       - ANON_KEY=${ANON_KEY:-anon-key-change-me}
       - ADMIN_KEY=${ADMIN_KEY:-admin-key-change-me}
+      - LOG_FILE=/data/startup.log
+    volumes:
+      - app_logs:/data
     restart: unless-stopped
 
   db:
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=postgres
     volumes:
-      - pgdata:/var/lib/postgresql          # ✅ correct mount for PostgreSQL 18+
+      - pgdata_fresh:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -33,4 +36,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  pgdata_fresh:
+  app_logs:
