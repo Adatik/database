@@ -265,7 +265,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (redesigned) -->
+  <!-- Privacy Modal -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -400,6 +400,9 @@
     let activeFilters = [];
     let webhookHeaders = [];
     let selectedRows = new Set();
+    // For API key dropdown
+    let anonKeyValue = '...';
+    let adminKeyValue = '...';
 
     // ======= DARK MODE =======
     function toggleDarkMode() {
@@ -452,7 +455,10 @@
     async function signUp() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -466,13 +472,18 @@
         } else {
           showAuthMessage(data.error || 'Registration failed.');
         }
-      } catch (err) { showAuthMessage('Network error.'); }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     async function signIn() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/login`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -486,7 +497,9 @@
         } else {
           showAuthMessage(data.error || 'Invalid credentials.');
         }
-      } catch (err) { showAuthMessage('Network error.'); }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     function signOut() {
@@ -1155,19 +1168,17 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (redesigned with only column permissions, check-all, combo value) =======
+    // ======= PRIVACY (with combobox value) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
       const table = allTables.find(t => t.name === selectedTable);
       const priv = table?.privacy || {};
       privacyRules = [];
-      // Convert existing rules
       const ops = ['read', 'write', 'update', 'delete'];
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
-            // Only add if not already present
             if (!privacyRules.find(r => r.condition === condition)) {
               privacyRules.push({
                 condition,
@@ -1177,21 +1188,15 @@
           });
         }
       });
-      // Populate column permissions from column_permissions
       const colPerms = table?.column_permissions || {};
       privacyRules.forEach(rule => {
-        // For each operation, if the condition appears in the privacy string for that op, we set columns based on colPerms
-        // but we'll just initialize all columns as selected if colPerms not empty? This is messy.
-        // Instead, we'll pre-select columns based on the rule's condition: if the condition was active for an op,
-        // we could check colPerms. But we don't have that mapping. For simplicity, we'll just set all columns as selected.
         rule.columns = {
-          read: [...currentColumns.map(c=>c.name), 'id'],
-          write: [...currentColumns.map(c=>c.name), 'id'],
-          update: [...currentColumns.map(c=>c.name), 'id'],
-          delete: []
+          read: colPerms.read ? [...colPerms.read] : [...currentColumns.map(c=>c.name), 'id'],
+          write: colPerms.write ? [...colPerms.write] : [...currentColumns.map(c=>c.name), 'id'],
+          update: colPerms.update ? [...colPerms.update] : [...currentColumns.map(c=>c.name), 'id'],
+          delete: colPerms.delete ? [...colPerms.delete] : []
         };
       });
-      // Also add global column permissions as a rule without condition? Not needed.
       if (privacyRules.length === 0) {
         privacyRules.push({
           condition: `${currentColumns[0]?.name || 'id'} eq @user_id`,
@@ -1211,13 +1216,12 @@
       const container = document.getElementById('privacy-rules-container');
       const allCols = ['id', ...currentColumns.map(c => c.name)];
       container.innerHTML = privacyRules.map((rule, idx) => {
-        // For check-all, compute if all columns are selected for each op
         const allRead = allCols.every(c => rule.columns.read.includes(c));
         const allWrite = allCols.every(c => rule.columns.write.includes(c));
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
         const allDelete = allCols.every(c => rule.columns.delete.includes(c));
 
-        // Build datalist for condition value
+        // Build datalist options for value
         const valueOptions = [
           '@user_id',
           ...allTables.filter(t => t.name !== selectedTable).flatMap(t => t.columns.map(c => `${t.name}.${c.name}`))
@@ -1232,7 +1236,6 @@
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
               ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
             </select>
-            <!-- Combo box for value -->
             <div class="flex-1 relative">
               <input list="privacy-value-list-${idx}" class="border p-1 rounded text-sm w-full dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" 
                      value="${rule.condition.split(' ').slice(2).join(' ') || ''}" 
@@ -1272,10 +1275,8 @@
 
     function checkAllPerms(cb, op, idx) {
       const allCols = ['id', ...currentColumns.map(c => c.name)];
-      allCols.forEach(col => {
-        toggleRuleColumn(col, op, idx, cb.checked);
-      });
-      renderPrivacyCards(); // re-render to update check-all checkboxes
+      allCols.forEach(col => toggleRuleColumn(col, op, idx, cb.checked));
+      renderPrivacyCards();
     }
 
     function addPrivacyRuleCard() {
@@ -1294,11 +1295,8 @@
 
     function toggleRuleColumn(col, op, idx, checked) {
       const arr = privacyRules[idx].columns[op];
-      if (checked) {
-        if (!arr.includes(col)) arr.push(col);
-      } else {
-        privacyRules[idx].columns[op] = arr.filter(c => c !== col);
-      }
+      if (checked) { if (!arr.includes(col)) arr.push(col); }
+      else { privacyRules[idx].columns[op] = arr.filter(c => c !== col); }
     }
 
     function updatePrivacyCondition(idx, selectEl) {
@@ -1319,16 +1317,12 @@
       privacyRules[idx].condition = parts.join(' ');
     }
 
-    function deletePrivacyRule(idx) {
-      privacyRules.splice(idx, 1);
-      renderPrivacyCards();
-    }
+    function deletePrivacyRule(idx) { privacyRules.splice(idx,1); renderPrivacyCards(); }
 
     async function savePrivacyRules() {
       const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
       ['read','write','update','delete'].forEach(op => {
-        const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition);
-        payload[op] = conditions.join(' AND ');
+        payload[op] = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition).join(' AND ');
       });
       const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() };
       privacyRules.forEach(rule => {
@@ -1343,8 +1337,7 @@
         delete: Array.from(globalCols.delete)
       };
       await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)
       });
       closeModal('privacy-modal');
@@ -1352,8 +1345,18 @@
       showToast('Privacy rules saved');
     }
 
-    // ======= API DOCS =======
-    function toggleApiToken() { showRealToken = !showRealToken; openApiModal(); }
+    // ======= API DOCS (with key dropdown) =======
+    async function toggleApiToken() {
+      if (!anonKeyValue || anonKeyValue === '...') {
+        try {
+          const res = await fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          anonKeyValue = data.anonKey || '';
+          adminKeyValue = data.adminKey || '';
+        } catch (e) {}
+      }
+      openApiModal();
+    }
 
     function openApiModal() {
       if (!selectedTable) return;
@@ -1363,42 +1366,74 @@
       currentColumns.forEach(c => exampleFields[c.name] = 'value');
       const firstCol = currentColumns[0]?.name || 'id';
       const methods = [
-        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows (supports filtering/sorting/pagination)' },
+        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
         { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
         { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
         { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
       ];
-      const tokenDisplay = showRealToken && token ? token : 'YOUR_TOKEN';
-      document.getElementById('api-content').innerHTML = methods.map(m => {
-        const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
-        const curlEx = m.method === 'GET'
-          ? `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`
-          : `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
-        const nodeEx = m.method === 'GET'
-          ? `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {
-  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }
-});
-const data = await res.json();`
-          : `const res = await fetch('${base}${m.url}', {
-  method: '${m.method}',
-  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },
-  body: JSON.stringify(${JSON.stringify(exampleFields)})
-});
-const data = await res.json();`;
-        return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
-          <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
-          <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
-          <details class="mb-2">
-            <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
-            <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code>${escapeHtml(curlEx)}</code><button onclick="copyText('${escapeHtml(curlEx)}', this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
-          </details>
-          <details>
-            <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
-            <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code>${escapeHtml(nodeEx)}</code><button onclick="copyText('${escapeHtml(nodeEx)}', this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
-          </details>
-        </div>`;
-      }).join('');
+
+      const keyOptions = [];
+      if (anonKeyValue && anonKeyValue !== '...') keyOptions.push(`<option value="${anonKeyValue}">Anon key</option>`);
+      if (adminKeyValue && adminKeyValue !== '...') keyOptions.push(`<option value="${adminKeyValue}">Admin key</option>`);
+
+      const keySelector = keyOptions.length > 0
+        ? `<select id="api-key-selector" onchange="updateApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">
+            ${keyOptions.join('')}
+           </select>`
+        : '<span class="text-xs text-gray-500">Loading keys…</span>';
+
+      document.getElementById('api-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>
+          ${keySelector}
+          <button onclick="toggleApiToken()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Refresh</button>
+        </div>
+        ${methods.map(m => {
+          const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+          return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+            <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+            <details class="mb-2">
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="curl-${m.method}">...</code><button onclick="copyText(document.getElementById('curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+            <details>
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="node-${m.method}">...</code><button onclick="copyText(document.getElementById('node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+          </div>`;
+        }).join('')}
+      `;
+      updateApiSnippets();
       document.getElementById('api-modal').classList.add('active');
+    }
+
+    function updateApiSnippets() {
+      const keyEl = document.getElementById('api-key-selector');
+      const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
+      const firstCol = currentColumns[0]?.name || 'id';
+      const base = API_BASE;
+      const methods = [
+        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
+        { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+
+      methods.forEach(m => {
+        const curlEl = document.getElementById(`curl-${m.method}`);
+        const nodeEl = document.getElementById(`node-${m.method}`);
+        if (!curlEl || !nodeEl) return;
+        if (m.method === 'GET') {
+          curlEl.textContent = `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }\n});\nconst data = await res.json();`;
+        } else {
+          curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify(${JSON.stringify(exampleFields)})\n});\nconst data = await res.json();`;
+        }
+      });
     }
 
     function copyText(text, btn) {
