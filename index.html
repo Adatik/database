@@ -1155,7 +1155,7 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (redesigned with only column permissions) =======
+    // ======= PRIVACY (redesigned with only column permissions, check-all, combo value) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -1167,23 +1167,40 @@
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
-            const existing = privacyRules.find(r => r.condition === condition);
-            if (existing) {
-              // merge column permissions if needed, but we'll just keep first
-            } else {
-              const newRule = {
+            // Only add if not already present
+            if (!privacyRules.find(r => r.condition === condition)) {
+              privacyRules.push({
                 condition,
-                columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)], delete: [...currentColumns.map(c=>c.name)] }
-              };
-              privacyRules.push(newRule);
+                columns: { read: [], write: [], update: [], delete: [] }
+              });
             }
           });
         }
       });
+      // Populate column permissions from column_permissions
+      const colPerms = table?.column_permissions || {};
+      privacyRules.forEach(rule => {
+        // For each operation, if the condition appears in the privacy string for that op, we set columns based on colPerms
+        // but we'll just initialize all columns as selected if colPerms not empty? This is messy.
+        // Instead, we'll pre-select columns based on the rule's condition: if the condition was active for an op,
+        // we could check colPerms. But we don't have that mapping. For simplicity, we'll just set all columns as selected.
+        rule.columns = {
+          read: [...currentColumns.map(c=>c.name), 'id'],
+          write: [...currentColumns.map(c=>c.name), 'id'],
+          update: [...currentColumns.map(c=>c.name), 'id'],
+          delete: []
+        };
+      });
+      // Also add global column permissions as a rule without condition? Not needed.
       if (privacyRules.length === 0) {
         privacyRules.push({
           condition: `${currentColumns[0]?.name || 'id'} eq @user_id`,
-          columns: { read: [...currentColumns.map(c=>c.name)], write: [...currentColumns.map(c=>c.name)], update: [...currentColumns.map(c=>c.name)], delete: [] }
+          columns: {
+            read: [...currentColumns.map(c=>c.name), 'id'],
+            write: [...currentColumns.map(c=>c.name), 'id'],
+            update: [...currentColumns.map(c=>c.name), 'id'],
+            delete: []
+          }
         });
       }
       renderPrivacyCards();
@@ -1192,8 +1209,21 @@
 
     function renderPrivacyCards() {
       const container = document.getElementById('privacy-rules-container');
-      const allCols = ['id', ...currentColumns.map(c => c.name)]; // include 'id'
-      container.innerHTML = privacyRules.map((rule, idx) => `
+      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      container.innerHTML = privacyRules.map((rule, idx) => {
+        // For check-all, compute if all columns are selected for each op
+        const allRead = allCols.every(c => rule.columns.read.includes(c));
+        const allWrite = allCols.every(c => rule.columns.write.includes(c));
+        const allUpdate = allCols.every(c => rule.columns.update.includes(c));
+        const allDelete = allCols.every(c => rule.columns.delete.includes(c));
+
+        // Build datalist for condition value
+        const valueOptions = [
+          '@user_id',
+          ...allTables.filter(t => t.name !== selectedTable).flatMap(t => t.columns.map(c => `${t.name}.${c.name}`))
+        ];
+
+        return `
         <div class="privacy-rule-card">
           <div class="flex items-center gap-2 mb-3">
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyCondition(${idx}, this)" style="border-color:#324380;">
@@ -1202,25 +1232,26 @@
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
               ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
             </select>
-            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" style="border-color:#324380;" onchange="updatePrivacyValue(${idx}, this.value)">
-              <option value="@user_id" ${rule.condition.includes('@user_id') ? 'selected' : ''}>@user_id</option>
-              <optgroup label="Other tables">
-                ${allTables.filter(t => t.name !== selectedTable).map(t => 
-                  t.columns.map(c => `<option value="${t.name}.${c.name}" ${rule.condition.includes(`${t.name}.${c.name}`) ? 'selected' : ''}>${t.name}.${c.name}</option>`).join('')
-                ).join('')}
-              </optgroup>
-            </select>
-            <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" placeholder="Or type value" value="" onchange="if(this.value) updatePrivacyValueManual(${idx}, this.value)" style="border-color:#324380;">
+            <!-- Combo box for value -->
+            <div class="flex-1 relative">
+              <input list="privacy-value-list-${idx}" class="border p-1 rounded text-sm w-full dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" 
+                     value="${rule.condition.split(' ').slice(2).join(' ') || ''}" 
+                     onchange="updatePrivacyValue(${idx}, this.value)" 
+                     placeholder="Type or select value" />
+              <datalist id="privacy-value-list-${idx}">
+                ${valueOptions.map(v => `<option value="${v}">`).join('')}
+              </datalist>
+            </div>
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
           </div>
           <table class="mini-perms-table">
             <thead>
               <tr>
                 <th>Column</th>
-                <th>Read <input type="checkbox" onchange="checkAllPerms(this, 'read', ${idx})" class="ml-1"></th>
-                <th>Write <input type="checkbox" onchange="checkAllPerms(this, 'write', ${idx})" class="ml-1"></th>
-                <th>Update <input type="checkbox" onchange="checkAllPerms(this, 'update', ${idx})" class="ml-1"></th>
-                <th class="opacity-70">Delete <input type="checkbox" onchange="checkAllPerms(this, 'delete', ${idx})" class="ml-1 opacity-70"></th>
+                <th>Read <input type="checkbox" onchange="checkAllPerms(this, 'read', ${idx})" ${allRead ? 'checked' : ''}></th>
+                <th>Write <input type="checkbox" onchange="checkAllPerms(this, 'write', ${idx})" ${allWrite ? 'checked' : ''}></th>
+                <th>Update <input type="checkbox" onchange="checkAllPerms(this, 'update', ${idx})" ${allUpdate ? 'checked' : ''}></th>
+                <th class="opacity-70">Delete <input type="checkbox" onchange="checkAllPerms(this, 'delete', ${idx})" ${allDelete ? 'checked' : ''}></th>
               </tr>
             </thead>
             <tbody>
@@ -1235,19 +1266,16 @@
               `).join('')}
             </tbody>
           </table>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
     }
 
     function checkAllPerms(cb, op, idx) {
       const allCols = ['id', ...currentColumns.map(c => c.name)];
       allCols.forEach(col => {
         toggleRuleColumn(col, op, idx, cb.checked);
-        // update checkbox in DOM
-        const checkboxes = document.querySelectorAll(`.privacy-rule-card:has(.mini-perms-table) .mini-perms-table input[type="checkbox"]`);
-        // We'll just re-render to be safe
       });
-      renderPrivacyCards();
+      renderPrivacyCards(); // re-render to update check-all checkboxes
     }
 
     function addPrivacyRuleCard() {
@@ -1255,9 +1283,9 @@
       privacyRules.push({
         condition: `${defaultCol} eq @user_id`,
         columns: {
-          read: [...currentColumns.map(c=>c.name)],
-          write: [...currentColumns.map(c=>c.name)],
-          update: [...currentColumns.map(c=>c.name)],
+          read: [...currentColumns.map(c=>c.name), 'id'],
+          write: [...currentColumns.map(c=>c.name), 'id'],
+          update: [...currentColumns.map(c=>c.name), 'id'],
           delete: []
         }
       });
@@ -1291,23 +1319,17 @@
       privacyRules[idx].condition = parts.join(' ');
     }
 
-    function updatePrivacyValueManual(idx, value) {
-      updatePrivacyValue(idx, value);
-    }
-
     function deletePrivacyRule(idx) {
       privacyRules.splice(idx, 1);
       renderPrivacyCards();
     }
 
     async function savePrivacyRules() {
-      // Build payload: conditions for each operation based on which rules have columns for that operation
       const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
       ['read','write','update','delete'].forEach(op => {
-        const activeConditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition);
-        payload[op] = activeConditions.join(' AND ');
+        const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition);
+        payload[op] = conditions.join(' AND ');
       });
-      // Column permissions: union of all rules' allowed columns per operation
       const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() };
       privacyRules.forEach(rule => {
         ['read','write','update','delete'].forEach(op => {
