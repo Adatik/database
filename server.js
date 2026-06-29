@@ -82,17 +82,15 @@ async function initDb() {
       CREATE TABLE IF NOT EXISTS _webhooks (
         id SERIAL PRIMARY KEY,
         table_name TEXT NOT NULL,
-        name TEXT DEFAULT '',
         url TEXT NOT NULL,
         events TEXT NOT NULL DEFAULT '[]',
         headers TEXT DEFAULT '[]'
       );
     `);
 
-    // Safe migration: add column_permissions if missing
-    try {
-      await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'");
-    } catch (e) { /* ignore */ }
+    // Safe migrations
+    try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
+    try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS name TEXT DEFAULT ''"); } catch (e) {}
 
     const exists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
     if (exists.rowCount === 0) {
@@ -110,7 +108,7 @@ async function initDb() {
   }
 }
 
-// Auth middleware (supports API keys and JWT)
+// Auth middleware – JWT users are treated as admin (full access in UI)
 function authMiddleware(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
@@ -129,7 +127,7 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   try {
     req.user = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
-    req.user.admin = false;
+    req.user.admin = true;   // <-- all logged-in users are full admins in the UI
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
