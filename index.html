@@ -6,7 +6,7 @@
   <title>My Database Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class' }; // no custom colors needed with arbitrary values
+    tailwind.config = { darkMode: 'class' };
     (function() {
       const stored = localStorage.getItem('theme');
       if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -20,9 +20,12 @@
     body { font-family: 'Inter', system-ui, sans-serif; }
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
     .modal-overlay.active { display: flex; }
-    .action-dropdown, .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 150px; display: none; }
-    .dark .action-dropdown, .dark .user-menu { background: #1A1F24; border-color: #374151; }
-    .action-dropdown.show, .user-menu.show { display: block; }
+    .action-dropdown { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 120px; display: none; }
+    .dark .action-dropdown { background: #1A1F24; border-color: #374151; }
+    .action-dropdown.show { display: block; }
+    .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 200px; display: none; }
+    .dark .user-menu { background: #1A1F24; border-color: #374151; }
+    .user-menu.show { display: block; }
     th { cursor: pointer; user-select: none; }
     th:hover { background-color: rgba(0,0,0,0.05); }
     .dark th:hover { background-color: rgba(255,255,255,0.05); }
@@ -33,11 +36,13 @@
     .dark .edit-popup { background: #1A1F24; border-color: #374151; }
     .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
     .dark .filter-panel { background: #1A1F24; border-color: #374151; }
+    select { border-color: #324380; border-radius: 6px; }
+    select:focus { border-color: #091747; outline: none; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
 
-  <!-- Auth Container (unchanged) -->
+  <!-- Auth Container -->
   <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-[#1A1F24] rounded-xl shadow-xl space-y-4">
     <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">My Database</h1>
     <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
@@ -51,7 +56,7 @@
 
   <!-- Main App -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
-    <!-- Sidebar (same as before) -->
+    <!-- Sidebar -->
     <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
       <div class="p-4 border-b border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
@@ -124,6 +129,18 @@
           </div>
         </div>
 
+        <!-- Bulk Selection Bar -->
+        <div id="bulk-bar" class="flex items-center justify-between mb-2 hidden">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">
+            <span id="selected-count">0</span> of <span id="total-row-count">0</span> rows selected
+          </span>
+          <div class="flex gap-2">
+            <button onclick="bulkDelete()" class="px-3 py-1 text-sm bg-red-500 text-white rounded-lg border-2 border-[#324380] hover:bg-red-600 transition" style="border-radius:8px;">Delete Selected</button>
+            <button onclick="openBulkEditModal()" class="px-3 py-1 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Bulk Edit</button>
+            <button onclick="bulkDuplicate()" class="px-3 py-1 text-sm bg-green-500 text-white rounded-lg border-2 border-[#324380] hover:bg-green-600 transition" style="border-radius:8px;">Duplicate Selected</button>
+          </div>
+        </div>
+
         <!-- Data Table -->
         <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
           <table class="w-full" id="data-table">
@@ -135,13 +152,25 @@
 
         <!-- Pagination -->
         <div id="pagination" class="flex items-center justify-between mt-4 hidden">
-          <div class="text-sm text-[#57636C] dark:text-[#95A1AC]">
-            Showing <span id="page-start">1</span> to <span id="page-end">10</span> of <span id="total-rows">0</span> rows
+          <div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">
+            Show
+            <select id="rows-per-page" onchange="changeRowsPerPage()" class="border p-1 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            rows
           </div>
-          <div class="flex gap-1">
-            <button onclick="prevPage()" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>
-            <span id="page-numbers" class="flex gap-1"></span>
-            <button onclick="nextPage()" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">
+              <span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span>
+            </span>
+            <div class="flex gap-1">
+              <button onclick="prevPage()" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>
+              <span id="page-numbers" class="flex gap-1"></span>
+              <button onclick="nextPage()" class="px-3 py-1 border rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>
+            </div>
           </div>
         </div>
       </div>
@@ -152,7 +181,7 @@
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
   <!-- ============= MODALS ============= -->
-  <!-- Create Table Modal (now includes default value) -->
+  <!-- Create Table Modal (includes default value) -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3>
@@ -167,7 +196,7 @@
     </div>
   </div>
 
-  <!-- Edit Table Schema Modal (includes default value) -->
+  <!-- Edit Table Schema Modal -->
   <div id="edit-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit Table: <span id="edit-table-name"></span></h3>
@@ -181,58 +210,59 @@
     </div>
   </div>
 
-  <!-- Webhooks Modal (with headers) -->
-  <div id="webhooks-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Webhooks (<span id="webhooks-table-name"></span>)</h3>
-      <div class="flex gap-2 mb-4">
-        <input id="webhook-url" placeholder="URL" class="flex-1 border p-2 rounded-lg text-sm focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-        <select id="webhook-event" class="border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
-          <option value="insert">insert</option>
-          <option value="update">update</option>
-          <option value="delete">delete</option>
-        </select>
-        <button onclick="addWebhook()" class="bg-[#091747] text-white px-3 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">Add</button>
+  <!-- Add Row Modal -->
+  <div id="add-row-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add New Row</h3>
+      <div id="add-row-fields" class="space-y-3"></div>
+      <p id="add-row-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmAddRow()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Add Row</button>
+        <button onclick="closeModal('add-row-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
-      <!-- Headers -->
-      <div class="mb-2">
-        <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Headers (optional)</label>
-        <div id="webhook-headers" class="space-y-1 mt-1"></div>
-        <button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add header</button>
-      </div>
-      <ul id="webhook-list" class="space-y-2 text-sm dark:text-white"></ul>
-      <button onclick="closeModal('webhooks-modal')" class="mt-4 bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition w-full" style="border-radius:8px;">Close</button>
     </div>
   </div>
 
-  <!-- Privacy Modal (uses secondary color for + Add condition) -->
-  <div id="privacy-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy Rules for <span id="privacy-table-name"></span></h3>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- ... (same as before, but the + Add condition button uses secondary text color) -->
+  <!-- Bulk Edit Modal -->
+  <div id="bulk-edit-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Bulk Update Selected Rows</h3>
+      <div class="space-y-3">
         <div>
-          <h4 class="font-medium text-[#101213] dark:text-white mb-2">Read Access</h4>
-          <div id="read-rules" class="space-y-1"></div>
-          <button onclick="addPrivacyCondition('read')" class="text-[#57636C] dark:text-[#95A1AC] text-sm mt-1">+ Add condition</button>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">Column to update</label>
+          <select id="bulk-edit-column" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;"></select>
         </div>
         <div>
-          <h4 class="font-medium text-[#101213] dark:text-white mb-2">Write Access</h4>
-          <div id="write-rules" class="space-y-1"></div>
-          <button onclick="addPrivacyCondition('write')" class="text-[#57636C] dark:text-[#95A1AC] text-sm mt-1">+ Add condition</button>
-        </div>
-        <div>
-          <h4 class="font-medium text-[#101213] dark:text-white mb-2">Update Access</h4>
-          <div id="update-rules" class="space-y-1"></div>
-          <button onclick="addPrivacyCondition('update')" class="text-[#57636C] dark:text-[#95A1AC] text-sm mt-1">+ Add condition</button>
-        </div>
-        <div>
-          <h4 class="font-medium text-[#101213] dark:text-white mb-2">Delete Access</h4>
-          <div id="delete-rules" class="space-y-1"></div>
-          <button onclick="addPrivacyCondition('delete')" class="text-[#57636C] dark:text-[#95A1AC] text-sm mt-1">+ Add condition</button>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">New value</label>
+          <input id="bulk-edit-value" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
         </div>
       </div>
-      <p id="privacy-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmBulkEdit()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Apply</button>
+        <button onclick="closeModal('bulk-edit-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Modal (redesigned with checkboxes) -->
+  <div id="privacy-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy Rules for <span id="privacy-table-name"></span></h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-[#091747] text-white">
+              <th class="px-3 py-2 text-left">Condition</th>
+              <th class="px-3 py-2 text-center">Read</th>
+              <th class="px-3 py-2 text-center">Write</th>
+              <th class="px-3 py-2 text-center">Update</th>
+              <th class="px-3 py-2 text-center">Delete</th>
+            </tr>
+          </thead>
+          <tbody id="privacy-rules-body"></tbody>
+        </table>
+      </div>
+      <button onclick="addPrivacyRuleRow()" class="mt-3 text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add rule</button>
       <div class="flex gap-2 mt-4">
         <button onclick="savePrivacyRules()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Save Rules</button>
         <button onclick="closeModal('privacy-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
@@ -240,9 +270,86 @@
     </div>
   </div>
 
-  <!-- API Docs Modal, Logs Modal, etc. (unchanged) -->
+  <!-- Webhooks Modal (with headers) -->
+  <div id="webhooks-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Webhooks (<span id="webhooks-table-name"></span>)</h3>
+      <div class="space-y-4">
+        <div class="flex gap-2">
+          <input id="webhook-url" placeholder="URL" class="flex-1 border p-2 rounded-lg text-sm focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+          <select id="webhook-event" class="border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">
+            <option value="insert">insert</option>
+            <option value="update">update</option>
+            <option value="delete">delete</option>
+          </select>
+          <button onclick="addWebhook()" class="bg-[#091747] text-white px-3 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">Add</button>
+        </div>
+        <div>
+          <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Custom Headers</label>
+          <div id="webhook-headers" class="space-y-2 mt-1"></div>
+          <button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline mt-1">+ Add header</button>
+        </div>
+        <ul id="webhook-list" class="space-y-2 text-sm dark:text-white"></ul>
+      </div>
+      <button onclick="closeModal('webhooks-modal')" class="mt-4 bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition w-full" style="border-radius:8px;">Close</button>
+    </div>
+  </div>
 
-  <!-- Include the new JavaScript at the bottom -->
+  <!-- API Docs Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">API Documentation – <span id="api-table-name"></span></h3>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleApiToken()" class="text-xs text-[#091747] hover:text-[#324380] border border-[#324380] px-2 py-1 rounded">Show token</button>
+          <button onclick="closeModal('api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+        </div>
+      </div>
+      <div id="api-content" class="space-y-6"></div>
+    </div>
+  </div>
+
+  <!-- Logs Modal -->
+  <div id="logs-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Real‑Time Change Log</h3>
+        <button onclick="closeModal('logs-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+      </div>
+      <div id="logs-content" class="text-sm space-y-1 text-[#57636C] dark:text-[#95A1AC] max-h-[60vh] overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Delete Table Modal -->
+  <div id="delete-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Table</h3>
+      <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p>
+      <div class="flex items-center gap-2 mb-2">
+        <input id="delete-confirm-input" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-400 outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" placeholder="Table name" />
+        <button onclick="copyTableName()" class="text-[#324380] hover:text-[#091747] text-sm border border-[#324380] px-2 py-1 rounded">Copy</button>
+      </div>
+      <p id="delete-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-red-700 transition flex-1" style="border-radius:8px;">Delete</button>
+        <button onclick="closeModal('delete-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Table Modal -->
+  <div id="rename-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Rename Table</h3>
+      <input id="rename-table-input" class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+      <p id="rename-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmRenameTable()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Rename</button>
+        <button onclick="closeModal('rename-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ================ GLOBALS ================
     const API_BASE = window.location.origin;
@@ -259,13 +366,14 @@
     let tableToRename = null;
     const COLUMN_TYPES = ['string','text','int','int8','integer','float','number','boolean','date','datetime'];
     const OPERATORS = ['eq','neq','gt','lt','gte','lte','contains','not_contains'];
-    let privacyRules = { read: [], write: [], update: [], delete: [] };
+    let privacyRules = []; // array of { condition: "col eq @user_id", read: true, write: false, update: false, delete: false }
     let showRealToken = false;
     let currentPage = 1;
     let rowsPerPage = 10;
     let totalRows = 0;
     let activeFilters = [];
     let webhookHeaders = [];
+    let selectedRows = new Set();
 
     // ======= DARK MODE =======
     function toggleDarkMode() {
@@ -442,6 +550,8 @@
       document.getElementById('no-table-selected').classList.add('hidden');
       document.getElementById('data-table-container').classList.remove('hidden');
       document.getElementById('pagination').classList.remove('hidden');
+      document.getElementById('bulk-bar').classList.add('hidden'); // hide on new table
+      selectedRows.clear();
       const meta = allTables.find(t => t.name === name);
       currentColumns = meta ? meta.columns : [];
       currentPage = 1;
@@ -457,7 +567,6 @@
       if (sortColumn) {
         url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`;
       }
-      // Apply active filters
       activeFilters.forEach((f, i) => {
         url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
       });
@@ -477,6 +586,7 @@
       }
       renderTable();
       renderPagination();
+      updateBulkBar();
     }
 
     function renderPagination() {
@@ -505,9 +615,142 @@
       if (currentPage < totalPages) { currentPage++; fetchAndRenderRows(); }
     }
 
+    function changeRowsPerPage() {
+      rowsPerPage = parseInt(document.getElementById('rows-per-page').value);
+      currentPage = 1;
+      fetchAndRenderRows();
+    }
+
+    // ======= BULK SELECTION =======
+    function toggleSelectAll(source) {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = source.checked;
+        const id = cb.dataset.id;
+        if (source.checked) selectedRows.add(id);
+        else selectedRows.delete(id);
+      });
+      updateBulkBar();
+    }
+
+    function toggleRowSelection(id, checked) {
+      if (checked) selectedRows.add(id);
+      else selectedRows.delete(id);
+      updateBulkBar();
+    }
+
+    function updateBulkBar() {
+      const count = selectedRows.size;
+      document.getElementById('selected-count').textContent = count;
+      document.getElementById('total-row-count').textContent = currentRows.length;
+      if (count > 0) {
+        document.getElementById('bulk-bar').classList.remove('hidden');
+      } else {
+        document.getElementById('bulk-bar').classList.add('hidden');
+      }
+    }
+
+    async function bulkDelete() {
+      if (selectedRows.size === 0) return;
+      if (!confirm(`Delete ${selectedRows.size} row(s)?`)) return;
+      const ids = Array.from(selectedRows);
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ids })
+      });
+      if (res.ok) {
+        selectedRows.clear();
+        fetchAndRenderRows();
+        showToast('Deleted');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
+      }
+    }
+
+    async function bulkDuplicate() {
+      if (selectedRows.size === 0) return;
+      const ids = Array.from(selectedRows);
+      for (const id of ids) {
+        const row = currentRows.find(r => r.id == id);
+        if (!row) continue;
+        const body = {};
+        currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
+        await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+      }
+      selectedRows.clear();
+      fetchAndRenderRows();
+      showToast('Duplicated');
+    }
+
+    function openBulkEditModal() {
+      if (selectedRows.size === 0) return;
+      const colSelect = document.getElementById('bulk-edit-column');
+      colSelect.innerHTML = currentColumns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+      document.getElementById('bulk-edit-value').value = '';
+      document.getElementById('bulk-edit-modal').classList.add('active');
+    }
+
+    async function confirmBulkEdit() {
+      const field = document.getElementById('bulk-edit-column').value;
+      const value = document.getElementById('bulk-edit-value').value;
+      const ids = Array.from(selectedRows);
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/bulk/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ids, field, value })
+      });
+      if (res.ok) {
+        selectedRows.clear();
+        closeModal('bulk-edit-modal');
+        fetchAndRenderRows();
+        showToast('Updated');
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
+      }
+    }
+
+    // ======= RENDER TABLE =======
+    function renderTable() {
+      const thead = document.getElementById('table-head');
+      const tbody = document.getElementById('table-body');
+      if (!selectedTable) return;
+      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      thead.innerHTML = `<tr class="bg-[#091747] text-white text-sm">
+        <th class="px-3 py-3 text-center"><input type="checkbox" class="row-select-all" onchange="toggleSelectAll(this)" /></th>
+        <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>
+        ${allCols.map(c => `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" onclick="sortTable('${c}')">${c} ${sortColumn === c ? (sortAsc?'▲':'▼') : '⇅'}</th>`).join('')}
+      </tr>`;
+      tbody.innerHTML = currentRows.length === 0 
+        ? `<tr><td colspan="${allCols.length+2}" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No rows yet. Click 'Add Row' to create one.</td></tr>`
+        : currentRows.map((row, idx) => `
+          <tr class="${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'} hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            <td class="px-3 py-3 text-center">
+              <input type="checkbox" class="row-checkbox" data-id="${row.id}" 
+                ${selectedRows.has(row.id.toString()) ? 'checked' : ''}
+                onchange="toggleRowSelection('${row.id}', this.checked)" />
+            </td>
+            <td class="px-3 py-3 relative">
+              <button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-lg">⋯</button>
+              <div id="actions-${row.id}" class="action-dropdown" style="min-width:100px;">
+                <button onclick="duplicateRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Duplicate</button>
+                <button onclick="copyRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Copy</button>
+                <button onclick="pasteRow()" class="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition ${copiedRowData ? '' : 'opacity-50 pointer-events-none'}">Paste</button>
+                <button onclick="deleteRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600 transition">Delete</button>
+              </div>
+            </td>
+            ${allCols.map(c => `<td class="px-4 py-3 text-sm cursor-pointer" onclick="showEditPopup(this,'${row.id}','${c}')">${escapeHtml(row[c] ?? '')}</td>`).join('')}
+          </tr>`).join('');
+    }
+
     // ======= INLINE EDIT POPUP =======
     function showEditPopup(cell, rowId, colName) {
-      // Remove any existing popup
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
       const oldValue = cell.textContent;
       const colMeta = currentColumns.find(c => c.name === colName);
@@ -563,13 +806,12 @@
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
     }
 
-    // ======= ACTIONS DROPDOWN (fixed position, always visible) =======
+    // ======= ACTIONS DROPDOWN =======
     function toggleActionsDropdown(e, rowId) {
       e.stopPropagation();
       document.querySelectorAll('.action-dropdown.show').forEach(d => d.classList.remove('show'));
       const dropdown = document.getElementById(`actions-${rowId}`);
       dropdown.classList.toggle('show');
-      // Adjust position to stay within viewport
       const rect = dropdown.getBoundingClientRect();
       if (rect.bottom > window.innerHeight) {
         dropdown.style.top = 'auto';
@@ -614,74 +856,6 @@
       else { const err = await res.json(); showToast(err.error || 'Paste failed', true); }
     }
 
-    function renderTable() {
-      const thead = document.getElementById('table-head');
-      const tbody = document.getElementById('table-body');
-      if (!selectedTable) return;
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
-      thead.innerHTML = `<tr class="bg-[#091747] text-white text-sm">
-        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>
-        ${allCols.map(c => `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" onclick="sortTable('${c}')">${c} ${sortColumn === c ? (sortAsc?'▲':'▼') : '⇅'}</th>`).join('')}
-      </tr>`;
-      tbody.innerHTML = currentRows.length === 0 
-        ? `<tr><td colspan="${allCols.length+1}" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No rows yet. Click 'Add Row' to create one.</td></tr>`
-        : currentRows.map((row, idx) => `
-          <tr class="${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'} hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-            <td class="px-4 py-3 relative">
-              <button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-lg">⋯</button>
-              <div id="actions-${row.id}" class="action-dropdown">
-                <button onclick="duplicateRow('${row.id}')" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Duplicate</button>
-                <button onclick="copyRow('${row.id}')" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Copy row</button>
-                <button onclick="pasteRow()" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition ${copiedRowData ? '' : 'opacity-50 pointer-events-none'}">Paste</button>
-                <button onclick="deleteRow('${row.id}')" class="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600 transition">Delete</button>
-              </div>
-            </td>
-            ${allCols.map(c => `<td class="px-4 py-3 text-sm cursor-pointer" onclick="showEditPopup(this,'${row.id}','${c}')">${escapeHtml(row[c] ?? '')}</td>`).join('')}
-          </tr>`).join('');
-    }
-
-    // ======= ADD ROW =======
-    function openAddRowModal() {
-      if (!selectedTable) { showToast('Please select a table first', true); return; }
-      const fieldsDiv = document.getElementById('add-row-fields');
-      fieldsDiv.innerHTML = currentColumns.map(c => {
-        const type = c.type || 'string';
-        let inputHtml = '';
-        if (['int','int8','integer','float','number'].includes(type)) {
-          inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
-        } else if (['date','datetime'].includes(type)) {
-          inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
-        } else if (type === 'boolean') {
-          inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>`;
-        } else {
-          inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
-        }
-        return `<div>
-          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">${c.name}</label>
-          ${inputHtml}
-        </div>`;
-      }).join('');
-      document.getElementById('add-row-modal').classList.add('active');
-    }
-
-    async function confirmAddRow() {
-      const body = {};
-      currentColumns.forEach(c => {
-        const el = document.getElementById(`modal-add-${c.name}`);
-        if (el) body[c.name] = el.value;
-      });
-      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); }
-      else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
-    }
-
     async function deleteRow(id) {
       if (!confirm('Delete this row permanently?')) return;
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}/${id}`, {
@@ -702,7 +876,7 @@
     // ======= SEARCH & FILTER =======
     function applySearch() {
       const query = document.getElementById('search-input').value.trim();
-      if (query) {
+      if (query && currentColumns.length > 0) {
         activeFilters = [{ column: currentColumns[0]?.name || 'title', operator: 'contains', value: query }];
       } else {
         activeFilters = [];
@@ -712,10 +886,11 @@
     }
 
     function toggleFilterPanel() {
-      document.getElementById('filter-panel').classList.toggle('hidden');
-      document.getElementById('filter-panel').style.display = 
-        document.getElementById('filter-panel').style.display === 'none' ? 'block' : 'none';
-      if (document.getElementById('filter-panel').style.display === 'block') {
+      const panel = document.getElementById('filter-panel');
+      if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+      } else {
+        panel.style.display = 'block';
         renderFilterConditions();
       }
     }
@@ -724,13 +899,13 @@
       const container = document.getElementById('filter-conditions');
       container.innerHTML = activeFilters.map((f, i) => `
         <div class="flex items-center gap-2">
-          <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-col">
+          <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-col" style="border-color:#324380;">
             ${currentColumns.map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
           </select>
-          <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-op">
+          <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-op" style="border-color:#324380;">
             ${OPERATORS.map(o => `<option value="${o}" ${f.operator === o ? 'selected' : ''}>${o}</option>`).join('')}
           </select>
-          <input value="${f.value}" class="border p-1 rounded text-sm flex-1 dark:bg-[#1A1F24] dark:text-white filter-val" />
+          <input value="${f.value}" class="border p-1 rounded text-sm flex-1 dark:bg-[#1A1F24] dark:text-white filter-val" style="border-color:#324380;" />
           <button onclick="removeFilterCondition(${i})" class="text-red-400 hover:text-red-600">✕</button>
         </div>
       `).join('');
@@ -766,8 +941,10 @@
 
     function clearFilters() {
       activeFilters = [];
+      document.getElementById('search-input').value = '';
       renderFilterConditions();
-      applyFilters();
+      currentPage = 1;
+      fetchAndRenderRows();
     }
 
     // ======= TABLE CREATE (with default values) =======
@@ -783,10 +960,10 @@
       document.getElementById('new-columns').innerHTML += `
         <div class="flex items-center gap-2">
           <input placeholder="Column name" class="column-name w-full border p-2 rounded-lg text-sm focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-          <select class="column-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
+          <select class="column-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">
             ${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
-          <input placeholder="Default value" class="column-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+          <input placeholder="Default" class="column-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
           <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>
         </div>`;
     }
@@ -823,7 +1000,7 @@
       }
     }
 
-    // ======= DELETE / RENAME TABLE (unchanged) =======
+    // ======= DELETE / RENAME TABLE =======
     function openDeleteTableModal(name) {
       tableToDelete = name;
       document.getElementById('delete-table-name').textContent = name;
@@ -889,7 +1066,7 @@
       container.innerHTML = table.columns.map(c => `
         <div class="flex items-center gap-2">
           <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
+          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">
             ${COLUMN_TYPES.map(t => `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}
           </select>
           <input value="${c.default || ''}" placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
@@ -903,7 +1080,7 @@
       document.getElementById('edit-columns').innerHTML += `
         <div class="flex items-center gap-2">
           <input placeholder="Column name" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
+          <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">
             ${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
           </select>
           <input placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
@@ -938,70 +1115,150 @@
       }
     }
 
-    // ======= PRIVACY RULES (unchanged) =======
+    // ======= ADD ROW =======
+    function openAddRowModal() {
+      if (!selectedTable) { showToast('Please select a table first', true); return; }
+      const fieldsDiv = document.getElementById('add-row-fields');
+      fieldsDiv.innerHTML = currentColumns.map(c => {
+        const type = c.type || 'string';
+        let inputHtml = '';
+        if (['int','int8','integer','float','number'].includes(type)) {
+          inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
+        } else if (['date','datetime'].includes(type)) {
+          inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
+        } else if (type === 'boolean') {
+          inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>`;
+        } else {
+          inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />`;
+        }
+        return `<div>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">${c.name}</label>
+          ${inputHtml}
+        </div>`;
+      }).join('');
+      document.getElementById('add-row-modal').classList.add('active');
+    }
+
+    async function confirmAddRow() {
+      const body = {};
+      currentColumns.forEach(c => {
+        const el = document.getElementById(`modal-add-${c.name}`);
+        if (el) body[c.name] = el.value;
+      });
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(body)
+      });
+      if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); }
+      else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
+    }
+
+    // ======= PRIVACY TABLE (new design) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
       const table = allTables.find(t => t.name === selectedTable);
       const priv = table?.privacy || {};
-      privacyRules.read = priv.read ? priv.read.split(' AND ').map(s=>s.trim()) : [];
-      privacyRules.write = priv.write ? priv.write.split(' AND ').map(s=>s.trim()) : [];
-      privacyRules.update = priv.update ? priv.update.split(' AND ').map(s=>s.trim()) : [];
-      privacyRules.delete = priv.delete ? priv.delete.split(' AND ').map(s=>s.trim()) : [];
-      renderPrivacyRules();
+      privacyRules = [];
+      const ops = ['read', 'write', 'update', 'delete'];
+      ops.forEach(op => {
+        if (priv[op]) {
+          priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
+            const existing = privacyRules.find(r => r.condition === condition);
+            if (existing) {
+              existing[op] = true;
+            } else {
+              const newRule = { condition, read: false, write: false, update: false, delete: false };
+              newRule[op] = true;
+              privacyRules.push(newRule);
+            }
+          });
+        }
+      });
+      if (privacyRules.length === 0) privacyRules.push({ condition: `${currentColumns[0]?.name || 'id'} eq @user_id`, read: false, write: false, update: false, delete: false });
+      renderPrivacyTable();
       document.getElementById('privacy-modal').classList.add('active');
     }
 
-    function renderPrivacyRules() {
-      ['read','write','update','delete'].forEach(op => {
-        const container = document.getElementById(`${op}-rules`);
-        container.innerHTML = privacyRules[op].map((rule, idx) => {
-          const parts = rule.split(' ');
-          const field = parts[0]||'';
-          const opVal = parts[1]||'';
-          const value = parts.slice(2).join(' ')||'';
-          return `<div class="flex flex-wrap items-center gap-1 p-1 border rounded dark:border-gray-600 mb-1">
-            <select class="flex-1 min-w-[100px] text-sm border p-1 rounded dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyField('${op}',${idx},this.value)">
-              ${currentColumns.map(c => `<option value="${c.name}" ${field===c.name?'selected':''}>${c.name}</option>`).join('')}
-            </select>
-            <select class="w-20 text-sm border p-1 rounded dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOp('${op}',${idx},this.value)">
-              ${OPERATORS.map(o => `<option value="${o}" ${opVal===o?'selected':''}>${o}</option>`).join('')}
-            </select>
-            <select class="flex-1 min-w-[120px] text-sm border p-1 rounded dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyValue('${op}',${idx},this.value)">
-              <option value="@user_id" ${value==='@user_id'?'selected':''}>@user_id</option>
-              <optgroup label="Other tables">
-                ${allTables.filter(t => t.name !== selectedTable).map(t => 
-                  t.columns.map(c => `<option value="${t.name}.${c.name}" ${value===`${t.name}.${c.name}`?'selected':''}>${t.name}.${c.name}</option>`).join('')
-                ).join('')}
-              </optgroup>
-            </select>
-            <button onclick="removePrivacyRule('${op}',${idx})" class="text-red-400 hover:text-red-600 text-lg">✕</button>
-          </div>`;
-        }).join('');
-        if (privacyRules[op].length === 0) container.innerHTML = '<p class="text-sm text-[#57636C] dark:text-[#95A1AC]">No conditions</p>';
-      });
+    function renderPrivacyTable() {
+      const tbody = document.getElementById('privacy-rules-body');
+      tbody.innerHTML = privacyRules.map((rule, idx) => `
+        <tr class="border dark:border-gray-600">
+          <td class="px-3 py-2">
+            <div class="flex items-center gap-1">
+              <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyCondition(${idx}, this)" style="border-color:#324380;">
+                ${currentColumns.map(c => `<option value="${c.name}" ${rule.condition.startsWith(c.name) ? 'selected' : ''}>${c.name}</option>`).join('')}
+              </select>
+              <select class="border p-1 rounded text-sm w-20 dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOperator(${idx}, this.value)" style="border-color:#324380;">
+                ${OPERATORS.map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${o}</option>`).join('')}
+              </select>
+              <select class="border p-1 rounded text-sm flex-1 dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyValue(${idx}, this.value)" style="border-color:#324380;">
+                <option value="@user_id" ${rule.condition.includes('@user_id') ? 'selected' : ''}>@user_id</option>
+                <optgroup label="Other tables">
+                  ${allTables.filter(t => t.name !== selectedTable).map(t => 
+                    t.columns.map(c => `<option value="${t.name}.${c.name}" ${rule.condition.includes(`${t.name}.${c.name}`) ? 'selected' : ''}>${t.name}.${c.name}</option>`).join('')
+                  ).join('')}
+                </optgroup>
+              </select>
+              <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
+            </div>
+          </td>
+          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.read ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'read', this.checked)" /></td>
+          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.write ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'write', this.checked)" /></td>
+          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.update ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'update', this.checked)" /></td>
+          <td class="px-3 py-2 text-center"><input type="checkbox" ${rule.delete ? 'checked' : ''} onchange="togglePrivacyOp(${idx}, 'delete', this.checked)" /></td>
+        </tr>
+      `).join('');
     }
 
-    function addPrivacyCondition(op) {
-      const defaultField = currentColumns.length ? currentColumns[0].name : 'id';
-      privacyRules[op].push(`${defaultField} eq @user_id`);
-      renderPrivacyRules();
+    function addPrivacyRuleRow() {
+      const defaultCol = currentColumns[0]?.name || 'id';
+      privacyRules.push({ condition: `${defaultCol} eq @user_id`, read: false, write: false, update: false, delete: false });
+      renderPrivacyTable();
     }
-    function updatePrivacyField(op, idx, field) { const parts = privacyRules[op][idx].split(' '); parts[0]=field; privacyRules[op][idx]=parts.join(' '); }
-    function updatePrivacyOp(op, idx, operator) { const parts = privacyRules[op][idx].split(' '); parts[1]=operator; privacyRules[op][idx]=parts.join(' '); }
-    function updatePrivacyValue(op, idx, value) { const parts = privacyRules[op][idx].split(' '); parts[2]=value; privacyRules[op][idx]=parts.join(' '); }
-    function removePrivacyRule(op, idx) { privacyRules[op].splice(idx,1); renderPrivacyRules(); }
+
+    function updatePrivacyCondition(idx, selectEl) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[0] = selectEl.value;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function updatePrivacyOperator(idx, op) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[1] = op;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function updatePrivacyValue(idx, value) {
+      const parts = privacyRules[idx].condition.split(' ');
+      parts[2] = value;
+      privacyRules[idx].condition = parts.join(' ');
+    }
+
+    function togglePrivacyOp(idx, op, checked) {
+      privacyRules[idx][op] = checked;
+    }
+
+    function deletePrivacyRule(idx) {
+      privacyRules.splice(idx, 1);
+      renderPrivacyTable();
+    }
 
     async function savePrivacyRules() {
+      const payload = { read: '', write: '', update: '', delete: '' };
+      const ops = ['read', 'write', 'update', 'delete'];
+      ops.forEach(op => {
+        const conditions = privacyRules.filter(r => r[op]).map(r => r.condition);
+        payload[op] = conditions.join(' AND ');
+      });
       await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          read: privacyRules.read.join(' AND '),
-          write: privacyRules.write.join(' AND '),
-          update: privacyRules.update.join(' AND '),
-          delete: privacyRules.delete.join(' AND ')
-        })
+        body: JSON.stringify(payload)
       });
       closeModal('privacy-modal');
       loadAllTables();
@@ -1053,6 +1310,7 @@ const data = await res.json();`;
       }).join('');
       document.getElementById('api-modal').classList.add('active');
     }
+
     function copyText(text, btn) { navigator.clipboard.writeText(text).then(() => { btn.textContent='Copied!'; setTimeout(()=>btn.textContent='Copy',2000); }); }
 
     // ======= WEBOOKS (with headers) =======
@@ -1096,10 +1354,11 @@ const data = await res.json();`;
       const url = document.getElementById('webhook-url').value.trim();
       const event = document.getElementById('webhook-event').value;
       if (!url) return;
+      const headers = webhookHeaders.filter(h => h.key);
       const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ url, event, headers: webhookHeaders })
+        body: JSON.stringify({ url, event, headers })
       });
       if (res.ok) { loadWebhooks(); document.getElementById('webhook-url').value = ''; webhookHeaders = []; renderWebhookHeaders(); showToast('Webhook added'); }
       else showToast('Failed', true);
