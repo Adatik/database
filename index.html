@@ -80,7 +80,7 @@
 
   <!-- Main App -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
-    <!-- Left navigation bar (thin) -->
+    <!-- Thin navigation bar -->
     <div class="w-16 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm p-2 space-y-2">
       <div class="nav-btn active" id="nav-database" onclick="switchView('database')" title="Database">
         <span class="text-xl">📊</span>
@@ -88,15 +88,10 @@
       <div class="nav-btn" id="nav-auth" onclick="switchView('auth')" title="Authentication">
         <span class="text-xl">🔐</span>
       </div>
-      <div class="mt-auto">
-        <button onclick="toggleDarkMode()" class="nav-btn" id="theme-toggle" title="Toggle dark mode">🌓</button>
-        <button onclick="signOut()" class="nav-btn" title="Logout">🚪</button>
-      </div>
     </div>
 
-    <!-- Second sidebar (content sidebar) -->
+    <!-- Content sidebar -->
     <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
-      <!-- Database view sidebar content -->
       <div id="database-sidebar">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
           <div class="flex items-center justify-between mb-4">
@@ -110,7 +105,6 @@
           <ul id="table-list" class="space-y-1"></ul>
         </div>
       </div>
-      <!-- Auth view sidebar content (hidden by default) -->
       <div id="auth-sidebar" class="hidden p-4">
         <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Users</p>
       </div>
@@ -146,6 +140,7 @@
                 <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Signed in as</p>
                 <p id="user-email-full" class="text-sm font-medium text-[#101213] dark:text-white truncate"></p>
               </div>
+              <button onclick="toggleDarkMode()" class="w-full text-left px-4 py-2 text-sm text-[#57636C] dark:text-[#95A1AC] hover:bg-gray-100 dark:hover:bg-gray-700 transition">🌓 Toggle dark mode</button>
               <button onclick="signOut()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Sign out</button>
             </div>
           </div>
@@ -237,7 +232,7 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
-  <!-- ============= MODALS ============= -->
+  <!-- ============= MODALS (same as before) ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
@@ -486,8 +481,6 @@
         html.classList.add('dark');
         localStorage.theme = 'dark';
       }
-      document.getElementById('theme-toggle').textContent = 
-        html.classList.contains('dark') ? '☀️' : '🌓';
     }
 
     // Toast
@@ -512,11 +505,8 @@
       const email = getUserEmail();
       document.getElementById('user-email-display').textContent = email;
       document.getElementById('user-email-full').textContent = email;
-      document.getElementById('theme-toggle').textContent = 
-        document.documentElement.classList.contains('dark') ? '☀️' : '🌓';
       await loadAllTables();
       connectWebSocket();
-      // Start in database view by default
       switchView('database');
       if (selectedTable) selectTable(selectedTable);
     }
