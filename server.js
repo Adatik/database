@@ -93,6 +93,14 @@ async function initDb() {
     try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
     try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
 
+    // Ensure users table metadata exists so Auth page can list users
+    const userMetaExists = await client.query("SELECT 1 FROM _tables WHERE name = 'users'");
+    if (userMetaExists.rowCount === 0) {
+      await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
+        VALUES ('users', '[{"name":"email","type":"string"}]', '{}', '{}', 9999)`);
+      startupLog('Registered users table in _tables');
+    }
+
     const exists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
     if (exists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
