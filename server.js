@@ -262,6 +262,41 @@ app.post('/api/project/:projectId/auth/login', async (req, res) => {
 });
 
 // ============================================================
+//  PROJECT USER MANAGEMENT (admin only)
+// ============================================================
+
+app.get('/api/project/:projectId/users', platformAuthMiddleware, async (req, res) => {
+  const { projectId } = req.params;
+  const projCheck = await pool.query('SELECT id FROM projects WHERE id = $1 AND platform_user_id = $2', [projectId, req.platformUser.id]);
+  if (projCheck.rowCount === 0) return res.status(404).json({ error: 'Project not found or access denied' });
+  const result = await pool.query('SELECT id, email FROM project_users WHERE project_id = $1', [projectId]);
+  res.json(result.rows);
+});
+
+app.put('/api/project/:projectId/users/:id', platformAuthMiddleware, async (req, res) => {
+  const { projectId, id } = req.params;
+  const projCheck = await pool.query('SELECT id FROM projects WHERE id = $1 AND platform_user_id = $2', [projectId, req.platformUser.id]);
+  if (projCheck.rowCount === 0) return res.status(404).json({ error: 'Project not found or access denied' });
+  const { email, password } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  if (password) {
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    await pool.query('UPDATE project_users SET email = $1, password = $2 WHERE id = $3 AND project_id = $4', [email, hash, id, projectId]);
+  } else {
+    await pool.query('UPDATE project_users SET email = $1 WHERE id = $2 AND project_id = $3', [email, id, projectId]);
+  }
+  res.json({ success: true });
+});
+
+app.delete('/api/project/:projectId/users/:id', platformAuthMiddleware, async (req, res) => {
+  const { projectId, id } = req.params;
+  const projCheck = await pool.query('SELECT id FROM projects WHERE id = $1 AND platform_user_id = $2', [projectId, req.platformUser.id]);
+  if (projCheck.rowCount === 0) return res.status(404).json({ error: 'Project not found or access denied' });
+  await pool.query('DELETE FROM project_users WHERE id = $1 AND project_id = $2', [id, projectId]);
+  res.json({ success: true });
+});
+
+// ============================================================
 //  PROJECT TABLE MANAGEMENT
 // ============================================================
 
@@ -458,8 +493,7 @@ app.post('/api/project/:projectId/data/:table', platformAuthMiddleware, async (r
     return req.body[f.name];
   });
   const tableFullName = `project_${projectId}_${table}`;
-  // Insert with a system project user? Actually we don't have one; we'll insert with NULL for now, or we need a system user for the project.
-  // Let's create a system project user for admin inserts.
+  // Insert with a system project user for admin inserts.
   let systemUserId = 0;
   const sysRes = await pool.query("SELECT id FROM project_users WHERE project_id = $1 AND email = 'system@internal'", [projectId]);
   if (sysRes.rowCount === 0) {
