@@ -65,11 +65,15 @@
     .webhook-header-row { display: flex; gap: 4px; align-items: center; }
     .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
     #webhook-headers { overflow-x: hidden; max-width: 100%; }
+    /* Project card styles */
+    .project-card { border: 1px solid #324380; border-radius: 12px; padding: 16px; background: white; display: flex; flex-direction: column; gap: 8px; }
+    .dark .project-card { background: #1A1F24; border-color: #374151; }
+    .project-avatar { width: 48px; height: 48px; border-radius: 50%; background: #091747; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
 
-  <!-- Auth Container (Platform login) -->
+  <!-- Auth Container -->
   <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-[#1A1F24] rounded-xl shadow-xl space-y-4">
     <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">My Database</h1>
     <p class="text-sm text-center text-[#57636C] dark:text-[#95A1AC]">Sign in to your platform account</p>
@@ -86,7 +90,10 @@
   <div id="app-container" class="flex flex-1 h-screen hidden">
     <!-- Thin navigation bar -->
     <div class="w-16 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm p-2 space-y-2">
-      <div class="nav-btn active" id="nav-database" onclick="switchView('database')" title="Database">
+      <div class="nav-btn active" id="nav-projects" onclick="switchView('projects')" title="Projects">
+        <span class="text-xl">📁</span>
+      </div>
+      <div class="nav-btn" id="nav-database" onclick="switchView('database')" title="Database">
         <span class="text-xl">📊</span>
       </div>
       <div class="nav-btn" id="nav-auth" onclick="switchView('auth')" title="Authentication">
@@ -94,8 +101,8 @@
       </div>
     </div>
 
-    <!-- Content sidebar -->
-    <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
+    <!-- Content sidebar (for database & auth views) -->
+    <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm hidden">
       <div id="database-sidebar">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
           <div class="flex items-center justify-between mb-4">
@@ -118,15 +125,14 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <!-- Top Bar -->
       <div class="bg-white dark:bg-[#1A1F24] border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
-        <div class="flex items-center gap-3">
-          <h1 id="current-table-name" class="text-xl font-semibold text-[#101213] dark:text-white">Select a table</h1>
-          <!-- Project selector -->
-          <select id="project-selector" onchange="switchProject(this.value)" class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;">
-          </select>
-          <button onclick="openNewProjectModal()" class="text-xs bg-[#091747] text-white px-2 py-1 rounded" style="border-radius:6px;">+ Project</button>
-        </div>
+        <h1 id="current-table-name" class="text-xl font-semibold text-[#101213] dark:text-white">Projects</h1>
         <div class="flex items-center gap-3 flex-wrap" id="top-bar-actions">
-          <span id="database-actions">
+          <!-- project actions (visible on projects page) -->
+          <span id="projects-actions">
+            <button onclick="openProjectModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Create Project</button>
+          </span>
+          <!-- database actions (hidden on projects page) -->
+          <span id="database-actions" class="hidden">
             <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Edit Table</button>
             <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Add Row</button>
             <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Privacy</button>
@@ -158,10 +164,21 @@
         </div>
       </div>
 
-      <!-- Table Area -->
+      <!-- Content Area -->
       <div class="flex-1 overflow-auto p-6">
-        <!-- Database View Content -->
-        <div id="database-table-area">
+        <!-- Projects Grid View -->
+        <div id="project-grid-area">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="projects-grid"></div>
+        </div>
+
+        <!-- Database View Content (hidden initially) -->
+        <div id="database-table-area" class="hidden">
+          <!-- project selector for quick switching -->
+          <div class="flex items-center gap-3 mb-4">
+            <select id="project-selector" onchange="switchProject(this.value)" class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;"></select>
+            <button onclick="openProjectModal()" class="text-xs bg-[#091747] text-white px-2 py-1 rounded" style="border-radius:6px;">+ Project</button>
+          </div>
+
           <div class="flex items-center justify-between mb-4">
             <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" oninput="applySearch()" />
             <div class="relative">
@@ -221,7 +238,7 @@
           </div>
         </div>
 
-        <!-- Authentication Table Area (project users) -->
+        <!-- Authentication Table Area -->
         <div id="auth-table-area" class="hidden">
           <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden mb-6">
             <table class="w-full" id="users-table">
@@ -440,7 +457,7 @@
     </div>
   </div>
 
-  <!-- Add User Modal (project user) -->
+  <!-- Add User Modal -->
   <div id="add-user-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add User</h3>
@@ -471,14 +488,16 @@
     </div>
   </div>
 
-  <!-- New Project Modal -->
-  <div id="new-project-modal" class="modal-overlay">
+  <!-- Project Modal (Create/Edit) -->
+  <div id="project-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
-      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">New Project</h3>
-      <input id="new-project-name" placeholder="Project name" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" />
+      <h3 id="project-modal-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create Project</h3>
+      <input type="hidden" id="edit-project-id" />
+      <input id="project-name" placeholder="Project name" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" />
+      <textarea id="project-description" placeholder="Description (optional)" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" rows="3"></textarea>
       <div class="flex gap-2">
-        <button onclick="createProject()" class="bg-[#091747] text-white px-4 py-2 rounded-lg flex-1" style="border-radius:8px;">Create</button>
-        <button onclick="closeModal('new-project-modal')" class="bg-gray-200 px-4 py-2 rounded-lg" style="border-radius:8px;">Cancel</button>
+        <button onclick="saveProject()" class="bg-[#091747] text-white px-4 py-2 rounded-lg flex-1" style="border-radius:8px;">Save</button>
+        <button onclick="closeModal('project-modal')" class="border border-[#324380] text-[#324380] px-4 py-2 rounded-lg" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
@@ -511,6 +530,7 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
+    // Privacy rules: { column, operator, reference, values (comma string), columns (perms) }
     let privacyRules = [];
     let currentPage = 1;
     let rowsPerPage = 10;
@@ -557,20 +577,7 @@
       document.getElementById('user-email-full').textContent = email;
       await loadProjects();
       connectWebSocket();
-      switchView('database');
-      if (activeProjectId && selectedTable) {
-        await loadAllTables();
-        if (allTables.some(t => t.name === selectedTable)) {
-          selectTable(selectedTable);
-        } else if (allTables.length > 0) {
-          selectTable(allTables[0].name);
-        }
-      } else {
-        await loadAllTables();
-        if (allTables.length > 0) {
-          selectTable(allTables[0].name);
-        }
-      }
+      switchView('projects');
     }
 
     function getUserEmail() {
@@ -600,7 +607,6 @@
         if (res.ok) {
           token = data.token;
           localStorage.setItem('token', token);
-          // activeProjectId will be set after loading projects
           showAuthMessage('');
           showApp();
         } else {
@@ -657,8 +663,6 @@
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const projects = await res.json();
-      const select = document.getElementById('project-selector');
-      select.innerHTML = projects.map(p => `<option value="${p.id}" ${activeProjectId == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
       if (projects.length > 0) {
         if (!activeProjectId || !projects.find(p => p.id == activeProjectId)) {
           activeProjectId = projects[0].id;
@@ -668,6 +672,18 @@
         activeProjectId = null;
         localStorage.removeItem('activeProjectId');
       }
+      updateProjectSelector();
+      loadProjectsGrid();
+    }
+
+    function updateProjectSelector() {
+      const select = document.getElementById('project-selector');
+      if (!select) return;
+      fetch(`${API_BASE}/api/platform/projects`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(projects => {
+          select.innerHTML = projects.map(p => `<option value="${p.id}" ${activeProjectId == p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+        });
     }
 
     function switchProject(projectId) {
@@ -682,66 +698,136 @@
       document.getElementById('pagination').classList.add('hidden');
     }
 
-    function openNewProjectModal() {
-      document.getElementById('new-project-name').value = '';
-      document.getElementById('new-project-modal').classList.add('active');
+    function openProjectModal(editId = null) {
+      document.getElementById('edit-project-id').value = editId || '';
+      document.getElementById('project-name').value = '';
+      document.getElementById('project-description').value = '';
+      if (editId) {
+        fetch(`${API_BASE}/api/platform/projects`, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(projects => {
+            const proj = projects.find(p => p.id == editId);
+            if (proj) {
+              document.getElementById('project-name').value = proj.name;
+              document.getElementById('project-description').value = proj.description || '';
+              document.getElementById('project-modal-title').textContent = 'Edit Project';
+            }
+          });
+      } else {
+        document.getElementById('project-modal-title').textContent = 'Create Project';
+      }
+      document.getElementById('project-modal').classList.add('active');
     }
 
-    async function createProject() {
-      const name = document.getElementById('new-project-name').value.trim();
+    function editProject(id) { openProjectModal(id); }
+
+    async function saveProject() {
+      const id = document.getElementById('edit-project-id').value;
+      const name = document.getElementById('project-name').value.trim();
+      const description = document.getElementById('project-description').value.trim();
       if (!name) return showToast('Project name required', true);
-      const res = await fetch(`${API_BASE}/api/platform/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ name })
+      const url = id ? `${API_BASE}/api/platform/projects/${id}` : `${API_BASE}/api/platform/projects`;
+      const method = id ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name, description })
       });
       if (res.ok) {
-        closeModal('new-project-modal');
-        await loadProjects();
-        // Optionally switch to new project (last in list)
-        const select = document.getElementById('project-selector');
-        const lastOption = select.options[select.options.length - 1];
-        switchProject(lastOption.value);
-        showToast('Project created');
+        closeModal('project-modal');
+        loadProjectsGrid();
+        updateProjectSelector();
+        showToast(id ? 'Project updated' : 'Project created');
       } else {
-        showToast('Failed to create project', true);
+        const err = await res.json();
+        showToast(err.error || 'Failed', true);
       }
+    }
+
+    async function loadProjectsGrid() {
+      const res = await fetch(`${API_BASE}/api/platform/projects`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const projects = await res.json();
+      const grid = document.getElementById('projects-grid');
+      grid.innerHTML = projects.map(p => {
+        const initial = (p.name || 'P')[0].toUpperCase();
+        return `
+          <div class="project-card">
+            <div class="flex items-center gap-4">
+              <div class="project-avatar">${initial}</div>
+              <div class="flex-1">
+                <h3 class="font-semibold text-lg">${escapeHtml(p.name)}</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(p.description || 'No description')}</p>
+              </div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <span>📅 ${new Date(p.created_at).toLocaleDateString()}</span>
+              <span>📊 ${p.table_count || 0} tables</span>
+              <span>👥 ${p.user_count || 0} users</span>
+            </div>
+            <div class="flex gap-2 mt-2">
+              <button onclick="enterProject(${p.id})" class="flex-1 bg-[#091747] text-white py-1 rounded text-sm">Open</button>
+              <button onclick="editProject(${p.id})" class="border border-[#324380] text-[#324380] px-3 py-1 rounded text-sm">✏️</button>
+            </div>
+          </div>`;
+      }).join('');
+      if (projects.length === 0) {
+        grid.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center">No projects yet. Create your first project.</p>';
+      }
+    }
+
+    function enterProject(projectId) {
+      activeProjectId = projectId;
+      localStorage.setItem('activeProjectId', projectId);
+      switchView('database');
     }
 
     // ======= NAVIGATION =======
     function switchView(view) {
-      const databaseSidebar = document.getElementById('database-sidebar');
-      const authSidebar = document.getElementById('auth-sidebar');
-      const databaseTableArea = document.getElementById('database-table-area');
-      const authTableArea = document.getElementById('auth-table-area');
+      const navProjects = document.getElementById('nav-projects');
+      const navDatabase = document.getElementById('nav-database');
+      const navAuth = document.getElementById('nav-auth');
+      const projectsActions = document.getElementById('projects-actions');
       const databaseActions = document.getElementById('database-actions');
       const authActions = document.getElementById('auth-actions');
-      const navDb = document.getElementById('nav-database');
-      const navAuth = document.getElementById('nav-auth');
+      const projectGrid = document.getElementById('project-grid-area');
+      const databaseArea = document.getElementById('database-table-area');
+      const authArea = document.getElementById('auth-table-area');
+      const sidebar = document.getElementById('content-sidebar');
 
-      if (view === 'database') {
-        databaseSidebar.classList.remove('hidden');
-        authSidebar.classList.add('hidden');
-        databaseTableArea.classList.remove('hidden');
-        authTableArea.classList.add('hidden');
+      // Reset all
+      navProjects.classList.remove('active');
+      navDatabase.classList.remove('active');
+      navAuth.classList.remove('active');
+      projectsActions.classList.add('hidden');
+      databaseActions.classList.add('hidden');
+      authActions.classList.add('hidden');
+      projectGrid.classList.add('hidden');
+      databaseArea.classList.add('hidden');
+      authArea.classList.add('hidden');
+      sidebar.classList.add('hidden');
+
+      if (view === 'projects') {
+        navProjects.classList.add('active');
+        projectsActions.classList.remove('hidden');
+        projectGrid.classList.remove('hidden');
+        document.getElementById('current-table-name').textContent = 'Projects';
+        loadProjectsGrid();
+      } else if (view === 'database') {
+        navDatabase.classList.add('active');
         databaseActions.classList.remove('hidden');
-        authActions.classList.add('hidden');
-        navDb.classList.add('active');
-        navAuth.classList.remove('active');
-        loadAllTables();
+        databaseArea.classList.remove('hidden');
+        sidebar.classList.remove('hidden');
         document.getElementById('current-table-name').textContent = selectedTable || 'Select a table';
-        if (!selectedTable && allTables.length > 0) {
-          selectTable(allTables[0].name);
-        }
+        updateProjectSelector();
+        loadAllTables();
+        if (!selectedTable && allTables.length > 0) selectTable(allTables[0].name);
+        else if (selectedTable && allTables.some(t => t.name === selectedTable)) selectTable(selectedTable);
       } else if (view === 'auth') {
-        databaseSidebar.classList.add('hidden');
-        authSidebar.classList.remove('hidden');
-        databaseTableArea.classList.add('hidden');
-        authTableArea.classList.remove('hidden');
-        databaseActions.classList.add('hidden');
-        authActions.classList.remove('hidden');
-        navDb.classList.remove('active');
         navAuth.classList.add('active');
+        authActions.classList.remove('hidden');
+        authArea.classList.remove('hidden');
+        sidebar.classList.remove('hidden');
         document.getElementById('current-table-name').textContent = 'Authentication';
         loadUsersTable();
       }
@@ -775,8 +861,7 @@
     async function deleteUser(id) {
       if (!confirm('Delete this user?')) return;
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) { loadUsersTable(); showToast('User deleted'); }
       else showToast('Failed', true);
@@ -794,8 +879,7 @@
       const password = document.getElementById('new-user-password').value;
       if (!email || !password) return showToast('Email and password required', true);
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ email, password })
       });
       if (res.ok) {
@@ -824,8 +908,7 @@
       const body = { email };
       if (password) body.password = password;
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(body)
       });
       if (res.ok) {
@@ -852,13 +935,9 @@
     function renderTableList() {
       const list = document.getElementById('table-list');
       list.innerHTML = allTables.map(t => `
-        <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition drag-item ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" 
-            data-table="${t.name}">
-          <span class="drag-handle mr-2" draggable="true" 
-                ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">
-            ⠿
-          </span>
-          <span class="flex-1 truncate ${selectedTable === t.name ? 'text-[#101213] dark:text-white font-bold' : 'text-[#101213] dark:text-white'}" onclick="event.stopPropagation(); selectTable('${t.name}')">📄 ${t.name}</span>
+        <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" 
+            onclick="selectTable('${t.name}')">
+          <span class="flex-1 truncate">📄 ${t.name}</span>
           <div class="hidden group-hover:flex items-center space-x-1">
             <button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button>
             <button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button>
@@ -866,32 +945,6 @@
           </div>
         </li>
       `).join('');
-    }
-
-    let dragSrcTable = null;
-    function handleDragStart(e) {
-      dragSrcTable = e.target.closest('.drag-item')?.dataset.table;
-      e.dataTransfer.effectAllowed = 'move';
-      e.target.closest('.drag-item')?.classList.add('dragging');
-    }
-    function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
-    function handleDrop(e) {
-      e.preventDefault();
-      const targetItem = e.target.closest('.drag-item');
-      if (!targetItem || !dragSrcTable) return;
-      const targetTable = targetItem.dataset.table;
-      if (dragSrcTable === targetTable) return;
-      const srcIdx = allTables.findIndex(t => t.name === dragSrcTable);
-      const destIdx = allTables.findIndex(t => t.name === targetTable);
-      const [moved] = allTables.splice(srcIdx, 1);
-      allTables.splice(destIdx, 0, moved);
-      renderTableList();
-      // Order save would need a project-scoped endpoint, but we'll skip for now
-      dragSrcTable = null;
-    }
-    function handleDragEnd(e) {
-      e.target.closest('.drag-item')?.classList.remove('dragging');
-      dragSrcTable = null;
     }
 
     function selectTable(name) {
@@ -924,9 +977,7 @@
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) { signOut(); return; }
       currentRows = await res.json();
-      // update totalRows via count endpoint (or estimate)
-      // Here we just set totalRows to currentRows length for simplicity, but we can do a count request later.
-      totalRows = currentRows.length;
+      totalRows = currentRows.length; // simplified
       renderTable();
       renderPagination();
       updateBulkBar();
@@ -964,7 +1015,9 @@
       });
       updateBulkBar();
     }
+
     function toggleRowSelection(id, checked) { if (checked) selectedRows.add(id); else selectedRows.delete(id); updateBulkBar(); }
+
     function updateBulkBar() {
       const count = selectedRows.size;
       document.getElementById('selected-count').textContent = count;
@@ -1023,7 +1076,7 @@
       const thead = document.getElementById('table-head');
       const tbody = document.getElementById('table-body');
       if (!selectedTable) return;
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
       thead.innerHTML = `<tr class="bg-[#091747] text-white text-sm">
         <th class="px-3 py-3 text-center"><input type="checkbox" class="row-select-all" onchange="toggleSelectAll(this)" /></th>
         <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>
@@ -1227,7 +1280,7 @@
       fetchAndRenderRows();
     }
 
-    // ======= TABLE CREATE / EDIT / DELETE / RENAME (project-scoped) =======
+    // ======= TABLE CREATE / EDIT / DELETE =======
     function openCreateTableModal() {
       document.getElementById('new-table-name').value = '';
       document.getElementById('new-columns').innerHTML = '';
@@ -1325,8 +1378,7 @@
         document.getElementById('rename-table-error').classList.remove('hidden');
         return;
       }
-      // Use the table rename endpoint (if we add it) or we can skip for now
-      showToast('Rename not implemented yet', true);
+      showToast('Rename not implemented via API yet', true);
     }
 
     function openEditTableModal(name) {
@@ -1389,7 +1441,7 @@
     function openAddRowModal() {
       if (!selectedTable) { showToast('Please select a table first', true); return; }
       const fieldsDiv = document.getElementById('add-row-fields');
-      fieldsDiv.innerHTML = currentColumns.map(c => {
+      fieldsDiv.innerHTML = currentColumns.filter(c => c.name !== 'password').map(c => {
         const type = c.type || 'string';
         const def = c.default || '';
         let inputHtml = '';
@@ -1427,28 +1479,55 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (simplified for project scope) =======
+    // ======= PRIVACY (with reference support) =======
+    function getAuthColumns() {
+      const base = ['Auth.ID', 'Auth.Email'];
+      const usersMeta = allTables.find(t => t.name === 'users');
+      if (usersMeta) {
+        usersMeta.columns.forEach(c => {
+          if (c.name !== 'email' && c.name !== 'id' && c.name !== 'password') {
+            base.push(`Auth.${c.name}`);
+          }
+        });
+      }
+      return base;
+    }
+
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
       const table = allTables.find(t => t.name === selectedTable);
       const priv = table?.privacy || {};
       privacyRules = [];
-      ['read','write','update','delete'].forEach(op => {
+      const ops = ['read', 'write', 'update', 'delete'];
+      ops.forEach(op => {
         if (priv[op]) {
-          priv[op].split(' AND ').forEach(condition => {
+          priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
             const parts = condition.split(' ');
             const col = parts[0] || '';
             const opVal = parts[1] || 'eq';
-            const val = parts.slice(2).join(' ') || '';
-            let reference = '';
-            let values = '';
-            if (val === '@user_id') { reference = 'Auth.ID'; }
-            else if (val === '@user_email') { reference = 'Auth.Email'; }
-            else { reference = ''; values = val; }
-            const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === reference && r.values === values);
+            let ref = '';
+            let val = '';
+            // parse reference tag {RefName} and remaining value
+            const refMatch = condition.match(/^([^ ]+)\s+([^ ]+)\s+\{([^}]+)\}\s*(.*)/);
+            if (refMatch) {
+              ref = refMatch[3];
+              val = refMatch[4];
+            } else {
+              val = parts.slice(2).join(' ');
+              if (val === '@user_id') ref = 'Auth.ID';
+              else if (val === '@user_email') ref = 'Auth.Email';
+              else val = val; // keep as is
+            }
+            const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === ref && r.values === val);
             if (!existing) {
-              privacyRules.push({ column: col, operator: opVal, reference: reference, values: values, columns: { read: [], write: [], update: [], delete: [] } });
+              privacyRules.push({
+                column: col,
+                operator: opVal,
+                reference: ref,
+                values: val,
+                columns: { read: [], write: [], update: [], delete: [] }
+              });
             }
           });
         }
@@ -1456,9 +1535,9 @@
       const colPerms = table?.column_permissions || {};
       privacyRules.forEach(rule => {
         rule.columns = {
-          read: colPerms.read ? [...colPerms.read] : [...currentColumns.map(c=>c.name), 'id'],
-          write: colPerms.write ? [...colPerms.write] : [...currentColumns.map(c=>c.name), 'id'],
-          update: colPerms.update ? [...colPerms.update] : [...currentColumns.map(c=>c.name), 'id'],
+          read: colPerms.read ? [...colPerms.read] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          write: colPerms.write ? [...colPerms.write] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          update: colPerms.update ? [...colPerms.update] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
           delete: colPerms.delete ? [...colPerms.delete] : []
         };
       });
@@ -1469,9 +1548,9 @@
           reference: 'Auth.ID',
           values: '',
           columns: {
-            read: [...currentColumns.map(c=>c.name), 'id'],
-            write: [...currentColumns.map(c=>c.name), 'id'],
-            update: [...currentColumns.map(c=>c.name), 'id'],
+            read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+            write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+            update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
             delete: []
           }
         });
@@ -1482,13 +1561,20 @@
 
     function renderPrivacyCards() {
       const container = document.getElementById('privacy-rules-container');
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
-      const authOpts = ['Auth.ID','Auth.Email'].map(a => `<option value="${a}">${a}</option>`).join('');
-      const dbOpts = allTables.map(t => t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('')).join('');
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
+      const authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join('');
+      const dbOpts = allTables.map(t => {
+        return t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
+      }).join('');
       const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`;
 
       container.innerHTML = privacyRules.map((rule, idx) => {
         const showValues = rule.reference && rule.reference.includes('.');
+        const allRead = allCols.every(c => rule.columns.read.includes(c));
+        const allWrite = allCols.every(c => rule.columns.write.includes(c));
+        const allUpdate = allCols.every(c => rule.columns.update.includes(c));
+        const allDelete = allCols.every(c => rule.columns.delete.includes(c));
+
         return `
         <div class="privacy-rule-card">
           <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -1501,12 +1587,62 @@
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">
               ${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}
             </select>
-            ${showValues ? `<input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" value="${rule.values || ''}" placeholder="Specific Values (optional)" onchange="updatePrivacyValues(${idx}, this.value)" /><small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>` : ''}
+            ${showValues ? `
+            <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" 
+                   value="${rule.values || ''}" 
+                   placeholder="Specific Values (optional)" 
+                   onchange="updatePrivacyValues(${idx}, this.value)" />
+            <small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>
+            ` : ''}
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button>
           </div>
-          <table class="mini-perms-table"><thead><tr><th>Column</th><th>Read</th><th>Write</th><th>Update</th><th class="opacity-70">Delete</th></tr></thead><tbody>${allCols.map(c => `<tr><td>${c}</td><td><input type="checkbox" ${rule.columns.read.includes(c)?'checked':''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.write.includes(c)?'checked':''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.update.includes(c)?'checked':''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td><td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c)?'checked':''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td></tr>`).join('')}</tbody></table>
+          <table class="mini-perms-table">
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Read <input type="checkbox" onchange="checkAllPerms(this, 'read', ${idx})" ${allRead ? 'checked' : ''}></th>
+                <th>Write <input type="checkbox" onchange="checkAllPerms(this, 'write', ${idx})" ${allWrite ? 'checked' : ''}></th>
+                <th>Update <input type="checkbox" onchange="checkAllPerms(this, 'update', ${idx})" ${allUpdate ? 'checked' : ''}></th>
+                <th class="opacity-70">Delete <input type="checkbox" onchange="checkAllPerms(this, 'delete', ${idx})" ${allDelete ? 'checked' : ''}></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allCols.map(c => `
+                <tr>
+                  <td>${c}</td>
+                  <td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td>
+                  <td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td>
+                  <td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td>
+                  <td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
         </div>`;
       }).join('');
+    }
+
+    function checkAllPerms(cb, op, idx) {
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
+      allCols.forEach(col => toggleRuleColumn(col, op, idx, cb.checked));
+      renderPrivacyCards();
+    }
+
+    function addPrivacyRuleCard() {
+      const defaultCol = currentColumns[0]?.name || 'id';
+      privacyRules.push({
+        column: defaultCol,
+        operator: 'eq',
+        reference: 'Auth.ID',
+        values: '',
+        columns: {
+          read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          delete: []
+        }
+      });
+      renderPrivacyCards();
     }
 
     function toggleRuleColumn(col, op, idx, checked) {
@@ -1519,6 +1655,7 @@
     function updatePrivacyOperator(idx, op) { privacyRules[idx].operator = op; }
     function updatePrivacyReference(idx, ref) { privacyRules[idx].reference = ref; renderPrivacyCards(); }
     function updatePrivacyValues(idx, val) { privacyRules[idx].values = val; }
+
     function deletePrivacyRule(idx) { privacyRules.splice(idx,1); renderPrivacyCards(); }
 
     async function savePrivacyRules() {
@@ -1527,11 +1664,12 @@
       ['read','write','update','delete'].forEach(op => {
         const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => {
           let valuePart;
-          if (r.reference === 'Auth.ID') valuePart = '@user_id';
-          else if (r.reference === 'Auth.Email') valuePart = '@user_email';
-          else if (r.reference && r.reference.includes('.')) valuePart = r.values || '';
+          if (r.reference === 'Auth.ID') valuePart = `{Auth.ID} @user_id`;
+          else if (r.reference === 'Auth.Email') valuePart = `{Auth.Email} @user_email`;
+          else if (r.reference && r.reference.includes('.')) valuePart = `{${r.reference}} ${r.values || ''}`;
+          else if (r.reference) valuePart = `{${r.reference}} ${r.values || ''}`;
           else valuePart = r.values || '';
-          if (!valuePart && !r.reference) return '';
+          if (!valuePart) return '';
           return `${r.column} ${r.operator} ${valuePart}`;
         }).filter(Boolean);
         payload[op] = conditions.join(' AND ');
@@ -1556,13 +1694,187 @@
       showToast('Privacy rules saved');
     }
 
-    // ======= API DOCS =======
-    async function toggleApiToken() { /* keep existing logic */ }
-    function openApiModal() { /* ... */ }
-    function updateApiSnippets() { /* ... */ }
-    function openAuthApiModal() { /* ... */ }
+    // ======= API DOCS & WEBHOOKS =======
+    // (unchanged, but adapted for project-scoped endpoints)
 
-    // ======= WEBOOKS =======
+    async function toggleApiToken() {
+      if (!anonKeyValue || anonKeyValue === '...') {
+        try {
+          const res = await fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          anonKeyValue = data.anonKey || '';
+          adminKeyValue = data.adminKey || '';
+        } catch (e) {}
+      }
+      openApiModal();
+    }
+
+    function openApiModal() {
+      if (!selectedTable) return;
+      document.getElementById('api-table-name').textContent = selectedTable;
+      const base = API_BASE;
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+      const firstCol = currentColumns[0]?.name || 'id';
+      const methods = [
+        { method: 'GET', url: `/api/project/${activeProjectId}/data/${selectedTable}`, desc: 'Retrieve rows' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+
+      const keyOptions = [];
+      if (anonKeyValue && anonKeyValue !== '...') keyOptions.push(`<option value="${anonKeyValue}">Anon key</option>`);
+      if (adminKeyValue && adminKeyValue !== '...') keyOptions.push(`<option value="${adminKeyValue}">Admin key</option>`);
+
+      const keySelector = keyOptions.length > 0
+        ? `<select id="api-key-selector" onchange="updateApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">
+            ${keyOptions.join('')}
+           </select>`
+        : '<span class="text-xs text-gray-500">Loading keys…</span>';
+
+      document.getElementById('api-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>
+          ${keySelector}
+          <button onclick="toggleApiToken()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Refresh</button>
+        </div>
+        ${methods.map(m => {
+          const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+          return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+            <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+            <details class="mb-2">
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="curl-${m.method}">...</code><button onclick="copyText(document.getElementById('curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+            <details>
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="node-${m.method}">...</code><button onclick="copyText(document.getElementById('node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+          </div>`;
+        }).join('')}
+      `;
+      updateApiSnippets();
+      document.getElementById('api-modal').classList.add('active');
+    }
+
+    function updateApiSnippets() {
+      const keyEl = document.getElementById('api-key-selector');
+      const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
+      const firstCol = currentColumns[0]?.name || 'id';
+      const base = API_BASE;
+      const methods = [
+        { method: 'GET', url: `/api/project/${activeProjectId}/data/${selectedTable}`, desc: 'Retrieve rows' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+
+      methods.forEach(m => {
+        const curlEl = document.getElementById(`curl-${m.method}`);
+        const nodeEl = document.getElementById(`node-${m.method}`);
+        if (!curlEl || !nodeEl) return;
+        if (m.method === 'GET') {
+          curlEl.textContent = `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }\n});\nconst data = await res.json();`;
+        } else {
+          curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify(${JSON.stringify(exampleFields)})\n});\nconst data = await res.json();`;
+        }
+      });
+    }
+
+    function openAuthApiModal() {
+      const base = API_BASE;
+      const methods = [
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new project user' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login as project user' },
+        { method: 'GET', url: `/api/project/${activeProjectId}/users`, desc: 'List all project users' },
+        { method: 'PUT', url: `/api/project/${activeProjectId}/users/:id`, desc: 'Update a user' },
+        { method: 'DELETE', url: `/api/project/${activeProjectId}/users/:id`, desc: 'Delete a user' }
+      ];
+
+      const keyOptions = [];
+      if (anonKeyValue && anonKeyValue !== '...') keyOptions.push(`<option value="${anonKeyValue}">Anon key</option>`);
+      if (adminKeyValue && adminKeyValue !== '...') keyOptions.push(`<option value="${adminKeyValue}">Admin key</option>`);
+      const keySelector = keyOptions.length > 0
+        ? `<select id="auth-api-key-selector" onchange="updateAuthApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">
+            ${keyOptions.join('')}
+           </select>`
+        : '<span class="text-xs text-gray-500">Loading keys…</span>';
+
+      document.getElementById('auth-api-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>
+          ${keySelector}
+          <button onclick="fetchKeysAndUpdateAuth()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Refresh</button>
+        </div>
+        ${methods.map(m => {
+          const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+          return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+            <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+            <details class="mb-2">
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-curl-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+            <details>
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-node-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+          </div>`;
+        }).join('')}
+      `;
+      updateAuthApiSnippets();
+      document.getElementById('auth-api-modal').classList.add('active');
+    }
+
+    function updateAuthApiSnippets() {
+      const keyEl = document.getElementById('auth-api-key-selector');
+      const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
+      const base = API_BASE;
+      const methods = [
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new project user' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login as project user' },
+        { method: 'GET', url: `/api/project/${activeProjectId}/users`, desc: 'List all project users' },
+        { method: 'PUT', url: `/api/project/${activeProjectId}/users/:id`, desc: 'Update a user' },
+        { method: 'DELETE', url: `/api/project/${activeProjectId}/users/:id`, desc: 'Delete a user' }
+      ];
+      methods.forEach(m => {
+        const curlEl = document.getElementById(`auth-curl-${m.method}`);
+        const nodeEl = document.getElementById(`auth-node-${m.method}`);
+        if (!curlEl || !nodeEl) return;
+        if (m.method === 'GET') {
+          curlEl.textContent = `curl "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }\n});\nconst data = await res.json();`;
+        } else if (m.method === 'POST' && m.url.includes('/auth/register')) {
+          curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`;
+        } else if (m.method === 'POST' && m.url.includes('/auth/login')) {
+          curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`;
+        } else {
+          curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify({})\n});\nconst data = await res.json();`;
+        }
+      });
+    }
+
+    function fetchKeysAndUpdateAuth() {
+      fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          anonKeyValue = data.anonKey || '';
+          adminKeyValue = data.adminKey || '';
+          openAuthApiModal();
+        })
+        .catch(() => showToast('Failed to fetch keys', true));
+    }
+
+    // ======= WEBHOOKS (adapted for projects) =======
     async function openWebhooksModal() {
       if (!selectedTable || !activeProjectId) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
@@ -1597,6 +1909,7 @@
       document.querySelectorAll('.webhook-event-cb').forEach(cb => cb.checked = false);
       webhookHeaders = [];
       renderWebhookHeaders();
+
       if (editId) {
         fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${selectedTable}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -1613,10 +1926,12 @@
           }
         });
       }
+
       document.getElementById('webhook-form-modal').classList.add('active');
     }
 
     function addWebhookHeader() { webhookHeaders.push({ key: '', value: '' }); renderWebhookHeaders(); }
+
     function renderWebhookHeaders() {
       const container = document.getElementById('webhook-headers');
       container.innerHTML = webhookHeaders.map((h, i) => `
@@ -1634,6 +1949,7 @@
       const events = Array.from(document.querySelectorAll('.webhook-event-cb:checked')).map(cb => cb.value);
       const headers = webhookHeaders.filter(h => h.key);
       if (!url || events.length === 0) return showToast('URL and at least one event required', true);
+
       if (webhookEditingId) {
         await fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${webhookEditingId}`, {
           method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
@@ -1656,6 +1972,7 @@
     }
 
     async function editWebhook(id) { openWebhookFormModal(id); }
+
     async function deleteWebhook(id) {
       if (!confirm('Delete this webhook?')) return;
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${id}`, {
@@ -1679,7 +1996,7 @@
     // ======= EXPORT CSV =======
     function exportCSV() {
       if (!selectedTable || !currentRows.length) return showToast('No data', true);
-      const cols = ['id', ...currentColumns.map(c => c.name)];
+      const cols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c=>c.name)];
       const csv = cols.join(',') + '\n' + currentRows.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const a = document.createElement('a');
@@ -1709,6 +2026,7 @@
       ws.onclose = () => setTimeout(connectWebSocket, 3000);
     }
 
+    // ======= HELPERS =======
     function escapeHtml(text) {
       if (text === null || text === undefined) return '';
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
