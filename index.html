@@ -17,7 +17,49 @@
     })();
   </script>
   <style>
-    /* … all previous styles … */
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
+    .modal-overlay.active { display: flex; }
+    .action-dropdown { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; min-width: 120px; display: none; }
+    .dark .action-dropdown { background: #1A1F24; border-color: #374151; }
+    .action-dropdown.show { display: block; }
+    .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 200px; display: none; }
+    .dark .user-menu { background: #1A1F24; border-color: #374151; }
+    .user-menu.show { display: block; }
+    th { cursor: pointer; user-select: none; }
+    th:hover { background-color: rgba(0,0,0,0.05); }
+    .dark th:hover { background-color: rgba(255,255,255,0.05); }
+    .drag-handle { cursor: grab; padding: 0 4px; color: #9ca3af; }
+    .drag-handle:active { cursor: grabbing; }
+    .dragging { opacity: 0.5; }
+    .edit-popup { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
+    .dark .edit-popup { background: #1A1F24; border-color: #374151; }
+    .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
+    .dark .filter-panel { background: #1A1F24; border-color: #374151; }
+    select { border-color: #324380; border-radius: 6px; }
+    select:focus { border-color: #091747; outline: none; }
+    .webhook-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .dark .webhook-item { border-color: #374151; }
+    table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
+    #data-table-container { overflow: visible !important; }
+    td { position: relative; }
+    .privacy-rule-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: white;
+    }
+    .dark .privacy-rule-card {
+      background: #1A1F24;
+      border-color: #374151;
+    }
+    .mini-perms-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .mini-perms-table th, .mini-perms-table td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; }
+    .dark .mini-perms-table th, .dark .mini-perms-table td { border-color: #374151; }
+    .mini-perms-table th { background: #F1F4F8; }
+    .dark .mini-perms-table th { background: #1A1F24; }
+    .opacity-70 { opacity: 0.7; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -34,10 +76,197 @@
     <p id="auth-message" class="text-sm text-red-500 text-center"></p>
   </div>
 
-  <!-- Main App (unchanged structure, sidebar, top bar, table area) -->
-  <!-- … -->
+  <!-- Main App -->
+  <div id="app-container" class="flex flex-1 h-screen hidden">
+    <!-- Sidebar -->
+    <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
+      <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-lg text-[#101213] dark:text-white">Tables</h2>
+          <button onclick="openCreateTableModal()" class="bg-[#091747] hover:bg-[#324380] text-white w-7 h-7 rounded-full flex items-center justify-center border-2 border-[#324380] transition" style="border-radius:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </div>
+        <ul id="table-list" class="space-y-1"></ul>
+      </div>
+      <div class="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+        <button onclick="toggleDarkMode()" class="w-full text-left text-sm text-[#57636C] dark:text-[#95A1AC] hover:bg-gray-100 dark:hover:bg-[#1A1F24] px-2 py-1 rounded" id="theme-toggle">🌓 Dark mode</button>
+        <button onclick="signOut()" class="w-full bg-gray-100 dark:bg-[#1A1F24] hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-lg text-[#57636C] dark:text-[#95A1AC] font-medium border-2 border-[#324380] transition" style="border-radius:8px;">Logout</button>
+      </div>
+    </div>
 
-  <!-- Privacy Modal -->
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Top Bar -->
+      <div class="bg-white dark:bg-[#1A1F24] border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
+        <h1 id="current-table-name" class="text-xl font-semibold text-[#101213] dark:text-white">Select a table</h1>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Edit Table</button>
+          <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Add Row</button>
+          <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Privacy</button>
+          <button onclick="openApiModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">API</button>
+          <button onclick="openWebhooksModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Webhooks</button>
+          <button onclick="exportCSV()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Export CSV</button>
+          <div class="relative">
+            <button onclick="toggleLogsModal()" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition text-xl">🔔</button>
+          </div>
+          <div class="relative">
+            <button id="user-menu-button" class="flex items-center space-x-2 text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition">
+              <span class="text-xl">👤</span>
+              <span id="user-email-display" class="hidden sm:inline text-sm"></span>
+            </button>
+            <div id="user-menu-dropdown" class="user-menu">
+              <div class="p-3 border-b dark:border-gray-600">
+                <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Signed in as</p>
+                <p id="user-email-full" class="text-sm font-medium text-[#101213] dark:text-white truncate"></p>
+              </div>
+              <button onclick="signOut()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table Area -->
+      <div class="flex-1 overflow-auto p-6">
+        <!-- Search and Filter Bar -->
+        <div class="flex items-center justify-between mb-4">
+          <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" onkeyup="applySearch()" />
+          <div class="relative">
+            <button onclick="toggleFilterPanel()" class="w-10 h-10 rounded-full bg-[#091747] text-white flex items-center justify-center shadow-md hover:bg-[#324380] transition">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <div id="filter-panel" class="filter-panel">
+              <h4 class="font-medium mb-2 text-[#101213] dark:text-white">Filters</h4>
+              <div id="filter-conditions" class="space-y-2 mb-3"></div>
+              <button onclick="addFilterCondition()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add filter</button>
+              <div class="flex gap-2 mt-3">
+                <button onclick="applyFilters()" class="bg-[#091747] text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Apply</button>
+                <button onclick="clearFilters()" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Selection Bar -->
+        <div id="bulk-bar" class="flex items-center justify-between mb-2 hidden">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">
+            <span id="selected-count">0</span> of <span id="total-row-count">0</span> rows selected
+          </span>
+          <div class="flex gap-2">
+            <button onclick="bulkDelete()" class="px-3 py-1 text-sm bg-red-500 text-white rounded-lg border-2 border-[#324380] hover:bg-red-600 transition" style="border-radius:8px;">Delete Selected</button>
+            <button onclick="openBulkEditModal()" class="px-3 py-1 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Bulk Edit</button>
+            <button onclick="bulkDuplicate()" class="px-3 py-1 text-sm bg-green-500 text-white rounded-lg border-2 border-[#324380] hover:bg-green-600 transition" style="border-radius:8px;">Duplicate Selected</button>
+          </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
+          <table class="w-full" id="data-table">
+            <thead id="table-head"></thead>
+            <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+          </table>
+        </div>
+        <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">Select a table from the left to view its data.</div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="flex items-center justify-between mt-4 hidden">
+          <div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">
+            Show
+            <select id="rows-per-page" onchange="changeRowsPerPage()" class="border p-1 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            rows
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">
+              <span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span>
+            </span>
+            <div class="flex gap-1">
+              <button onclick="prevPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>
+              <span id="page-numbers" class="flex gap-1"></span>
+              <button onclick="nextPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
+
+  <!-- ============= MODALS ============= -->
+  <!-- Create Table Modal -->
+  <div id="create-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3>
+      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+      <div id="new-columns" class="space-y-3 mb-3"></div>
+      <button onclick="addColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button>
+      <p id="create-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="createTable()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Create</button>
+        <button onclick="closeModal('create-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Table Schema Modal -->
+  <div id="edit-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit Table: <span id="edit-table-name"></span></h3>
+      <div id="edit-columns" class="space-y-3 mb-3"></div>
+      <button onclick="addEditColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button>
+      <p id="edit-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="saveTableSchema()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Save Changes</button>
+        <button onclick="closeModal('edit-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Row Modal -->
+  <div id="add-row-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add New Row</h3>
+      <div id="add-row-fields" class="space-y-3"></div>
+      <p id="add-row-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmAddRow()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Add Row</button>
+        <button onclick="closeModal('add-row-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Edit Modal -->
+  <div id="bulk-edit-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Bulk Update Selected Rows</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">Column to update</label>
+          <select id="bulk-edit-column" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;"></select>
+        </div>
+        <div>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">New value</label>
+          <input id="bulk-edit-value" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmBulkEdit()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Apply</button>
+        <button onclick="closeModal('bulk-edit-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Modal (updated value field) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -98,6 +327,61 @@
           <button onclick="saveWebhook()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">Save Webhook</button>
           <button onclick="closeModal('webhook-form-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm" style="border-radius:8px;">Cancel</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Docs Modal -->
+  <div id="api-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">API Documentation – <span id="api-table-name"></span></h3>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleApiToken()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Show token</button>
+          <button onclick="closeModal('api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+        </div>
+      </div>
+      <div id="api-content" class="space-y-6"></div>
+    </div>
+  </div>
+
+  <!-- Logs Modal -->
+  <div id="logs-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Real‑Time Change Log</h3>
+        <button onclick="closeModal('logs-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+      </div>
+      <div id="logs-content" class="text-sm space-y-1 text-[#57636C] dark:text-[#95A1AC] max-h-[60vh] overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Delete Table Modal -->
+  <div id="delete-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Table</h3>
+      <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p>
+      <div class="flex items-center gap-2 mb-2">
+        <input id="delete-confirm-input" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-400 outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" placeholder="Table name" />
+        <button onclick="copyTableName()" class="text-[#324380] hover:text-[#091747] text-sm border border-[#324380] px-2 py-1 rounded">Copy</button>
+      </div>
+      <p id="delete-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-red-700 transition flex-1" style="border-radius:8px;">Delete</button>
+        <button onclick="closeModal('delete-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Table Modal -->
+  <div id="rename-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Rename Table</h3>
+      <input id="rename-table-input" class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+      <p id="rename-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmRenameTable()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Rename</button>
+        <button onclick="closeModal('rename-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
       </div>
     </div>
   </div>
@@ -194,7 +478,10 @@
     async function signUp() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/register`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -208,13 +495,18 @@
         } else {
           showAuthMessage(data.error || 'Registration failed.');
         }
-      } catch (err) { showAuthMessage('Network error.'); }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     async function signIn() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
+      if (!email || !password) {
+        showAuthMessage('Please fill in both fields.');
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/api/login`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
@@ -228,7 +520,9 @@
         } else {
           showAuthMessage(data.error || 'Invalid credentials.');
         }
-      } catch (err) { showAuthMessage('Network error.'); }
+      } catch (err) {
+        showAuthMessage('Network error.');
+      }
     }
 
     function signOut() {
@@ -1075,11 +1369,103 @@
       showToast('Privacy rules saved');
     }
 
-    // ======= API DOCS =======
-    async function toggleApiToken() { /* … same as before … */ }
-    function openApiModal() { /* … same as before … */ }
-    function updateApiSnippets() { /* … same as before … */ }
-    function copyText(text, btn) { /* … same as before … */ }
+    // ======= API DOCS (with key dropdown) =======
+    async function toggleApiToken() {
+      if (!anonKeyValue || anonKeyValue === '...') {
+        try {
+          const res = await fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+          const data = await res.json();
+          anonKeyValue = data.anonKey || '';
+          adminKeyValue = data.adminKey || '';
+        } catch (e) {}
+      }
+      openApiModal();
+    }
+
+    function openApiModal() {
+      if (!selectedTable) return;
+      document.getElementById('api-table-name').textContent = selectedTable;
+      const base = API_BASE;
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+      const firstCol = currentColumns[0]?.name || 'id';
+      const methods = [
+        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
+        { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+
+      const keyOptions = [];
+      if (anonKeyValue && anonKeyValue !== '...') keyOptions.push(`<option value="${anonKeyValue}">Anon key</option>`);
+      if (adminKeyValue && adminKeyValue !== '...') keyOptions.push(`<option value="${adminKeyValue}">Admin key</option>`);
+
+      const keySelector = keyOptions.length > 0
+        ? `<select id="api-key-selector" onchange="updateApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">
+            ${keyOptions.join('')}
+           </select>`
+        : '<span class="text-xs text-gray-500">Loading keys…</span>';
+
+      document.getElementById('api-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>
+          ${keySelector}
+          <button onclick="toggleApiToken()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Refresh</button>
+        </div>
+        ${methods.map(m => {
+          const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+          return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+            <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+            <details class="mb-2">
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="curl-${m.method}">...</code><button onclick="copyText(document.getElementById('curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+            <details>
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="node-${m.method}">...</code><button onclick="copyText(document.getElementById('node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+          </div>`;
+        }).join('')}
+      `;
+      updateApiSnippets();
+      document.getElementById('api-modal').classList.add('active');
+    }
+
+    function updateApiSnippets() {
+      const keyEl = document.getElementById('api-key-selector');
+      const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
+      const firstCol = currentColumns[0]?.name || 'id';
+      const base = API_BASE;
+      const methods = [
+        { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
+        { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
+        { method: 'PUT', url: `/api/data/${selectedTable}/:id`, desc: 'Update a row by ID' },
+        { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
+      ];
+      const exampleFields = {};
+      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+
+      methods.forEach(m => {
+        const curlEl = document.getElementById(`curl-${m.method}`);
+        const nodeEl = document.getElementById(`node-${m.method}`);
+        if (!curlEl || !nodeEl) return;
+        if (m.method === 'GET') {
+          curlEl.textContent = `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }\n});\nconst data = await res.json();`;
+        } else {
+          curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify(${JSON.stringify(exampleFields)})\n});\nconst data = await res.json();`;
+        }
+      });
+    }
+
+    function copyText(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = '📋 Copy', 2000);
+      });
+    }
 
     // ======= WEBOOKS (separate popup) =======
     async function openWebhooksModal() {
@@ -1188,14 +1574,48 @@
     }
 
     // ======= LOGS =======
-    function toggleLogsModal() { /* … same … */ }
-    function appendLog(msg) { /* … same … */ }
+    function toggleLogsModal() { document.getElementById('logs-modal').classList.toggle('active'); }
+    function appendLog(msg) {
+      const logDiv = document.getElementById('logs-content');
+      const p = document.createElement('p');
+      p.className = 'text-xs border-b pb-1 mb-1 dark:border-gray-600 dark:text-[#95A1AC]';
+      p.textContent = msg;
+      logDiv.prepend(p);
+      if (logDiv.children.length > 50) logDiv.lastChild.remove();
+    }
 
     // ======= EXPORT CSV =======
-    function exportCSV() { /* … same … */ }
+    function exportCSV() {
+      if (!selectedTable || !currentRows.length) return showToast('No data', true);
+      const cols = ['id', ...currentColumns.map(c=>c.name)];
+      const csv = cols.join(',') + '\n' + currentRows.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${selectedTable}.csv`;
+      a.click();
+      showToast('CSV exported');
+    }
 
     // ======= WEBSOCKET =======
-    function connectWebSocket() { /* … same … */ }
+    function connectWebSocket() {
+      if (ws) ws.close();
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', token }));
+      ws.onmessage = (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === 'item_change') {
+          let text = `[${msg.table}] ${msg.event}: `;
+          if (msg.event === 'update') text += `old=${JSON.stringify(msg.old)} → new=${JSON.stringify(msg.new)}`;
+          else if (msg.event === 'delete') text += `old=${JSON.stringify(msg.old)}`;
+          else text += `new=${JSON.stringify(msg.new)}`;
+          appendLog(text);
+          if (msg.table === selectedTable) fetchAndRenderRows();
+        }
+      };
+      ws.onclose = () => setTimeout(connectWebSocket, 3000);
+    }
 
     // ======= HELPERS =======
     function escapeHtml(text) {
