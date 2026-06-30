@@ -265,7 +265,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (with custom value option) -->
+  <!-- Privacy Modal (updated value field) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -278,13 +278,32 @@
     </div>
   </div>
 
-  <!-- Webhooks Modal -->
+  <!-- Webhooks Modal (redesigned with table) -->
   <div id="webhooks-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Webhooks for <span id="webhooks-table-name"></span></h3>
-      <div id="webhook-list" class="space-y-3 mb-6"></div>
-      <div class="border-2 border-[#324380] rounded-lg p-4">
-        <h4 class="font-medium text-[#101213] dark:text-white mb-3">Add Webhook</h4>
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Webhooks for <span id="webhooks-table-name"></span></h3>
+        <button onclick="openAddWebhookForm()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">+ New Webhook</button>
+      </div>
+
+      <!-- Existing webhooks table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="webhooks-table">
+          <thead>
+            <tr class="bg-[#091747] text-white">
+              <th class="px-3 py-2 text-left">Name</th>
+              <th class="px-3 py-2 text-left">URL</th>
+              <th class="px-3 py-2 text-left">Events</th>
+              <th class="px-3 py-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="webhooks-table-body" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+
+      <!-- Add/Edit Webhook Form (hidden by default) -->
+      <div id="webhook-form-container" class="hidden mt-6 border-2 border-[#324380] rounded-lg p-4">
+        <h4 id="webhook-form-title" class="font-medium text-[#101213] dark:text-white mb-3">Add Webhook</h4>
         <div class="space-y-3">
           <input id="webhook-name" placeholder="Webhook name (optional)" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
           <input id="webhook-url" placeholder="URL" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
@@ -301,9 +320,13 @@
             <div id="webhook-headers" class="space-y-2 mt-1"></div>
             <button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline mt-1">+ Add header</button>
           </div>
-          <button onclick="addWebhook()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">Add Webhook</button>
+          <div class="flex gap-2">
+            <button onclick="saveWebhook()" id="webhook-save-btn" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition text-sm" style="border-radius:8px;">Save Webhook</button>
+            <button onclick="cancelWebhookForm()" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm" style="border-radius:8px;">Cancel</button>
+          </div>
         </div>
       </div>
+
       <button onclick="closeModal('webhooks-modal')" class="mt-4 bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition w-full" style="border-radius:8px;">Close</button>
     </div>
   </div>
@@ -391,7 +414,6 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Privacy rules array
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
@@ -402,6 +424,7 @@
     let selectedRows = new Set();
     let anonKeyValue = '...';
     let adminKeyValue = '...';
+    let webhookEditingId = null;   // track which webhook is being edited
 
     // ======= DARK MODE =======
     function toggleDarkMode() {
@@ -1167,7 +1190,7 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (custom value dropdown) =======
+    // ======= PRIVACY (updated value field with quick @user_id) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -1220,12 +1243,7 @@
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
         const allDelete = allCols.every(c => rule.columns.delete.includes(c));
 
-        const valueOptions = [
-          '@user_id',
-          ...allTables.filter(t => t.name !== selectedTable).flatMap(t => t.columns.map(c => `${t.name}.${c.name}`))
-        ];
         const currentValue = rule.condition.split(' ').slice(2).join(' ') || '';
-        const isCustom = !valueOptions.includes(currentValue) && currentValue !== '';
 
         return `
         <div class="privacy-rule-card">
@@ -1237,16 +1255,15 @@
               ${(TYPE_OPERATORS[currentColumns.find(c => rule.condition.startsWith(c))?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.condition.split(' ')[1] === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
             </select>
             <div class="flex-1 flex gap-1">
-              <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="handlePrivacyValueChange(${idx}, this.value)" style="border-color:#324380;" id="privacy-value-select-${idx}">
-                ${valueOptions.map(v => `<option value="${v}" ${currentValue === v ? 'selected' : ''}>${v}</option>`).join('')}
-                <option value="__custom__" ${isCustom ? 'selected' : ''}>Custom value…</option>
-              </select>
-              <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 ${isCustom ? '' : 'hidden'}" 
+              <input class="border p-1 rounded text-sm w-full dark:bg-[#1A1F24] dark:text-white" 
                      id="privacy-value-input-${idx}" 
-                     value="${isCustom ? currentValue : ''}" 
-                     placeholder="Type custom value"
+                     value="${currentValue}" 
+                     placeholder="Value (leave empty for all)"
                      onchange="updatePrivacyValue(${idx}, this.value)" 
                      style="border-color:#324380;" />
+              <button onclick="document.getElementById('privacy-value-input-${idx}').value = '@user_id'; updatePrivacyValue(${idx}, '@user_id')" 
+                      class="px-2 py-1 text-xs bg-[#091747] text-white border border-[#324380] rounded hover:bg-[#324380]" 
+                      style="white-space:nowrap;">@user_id</button>
             </div>
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
           </div>
@@ -1274,24 +1291,6 @@
           </table>
         </div>`;
       }).join('');
-
-      privacyRules.forEach((rule, idx) => {
-        const selectEl = document.getElementById(`privacy-value-select-${idx}`);
-        if (selectEl) handlePrivacyValueChange(idx, selectEl.value);
-      });
-    }
-
-    function handlePrivacyValueChange(idx, value) {
-      const inputEl = document.getElementById(`privacy-value-input-${idx}`);
-      if (value === '__custom__') {
-        if (inputEl) {
-          inputEl.classList.remove('hidden');
-          inputEl.focus();
-        }
-      } else {
-        if (inputEl) inputEl.classList.add('hidden');
-        updatePrivacyValue(idx, value);
-      }
     }
 
     function checkAllPerms(cb, op, idx) {
@@ -1464,16 +1463,63 @@
       });
     }
 
-    // ======= WEBOOKS =======
+    // ======= WEBOOKS (redesigned with table + edit) =======
     async function openWebhooksModal() {
       if (!selectedTable) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
+      webhookEditingId = null;
+      cancelWebhookForm();
+      loadWebhooksTable();
+      document.getElementById('webhooks-modal').classList.add('active');
+    }
+
+    async function loadWebhooksTable() {
+      const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const hooks = await res.json();
+      const tbody = document.getElementById('webhooks-table-body');
+      tbody.innerHTML = hooks.length ? hooks.map(h => `
+        <tr class="border dark:border-gray-600">
+          <td class="px-3 py-2 text-sm">${escapeHtml(h.name || 'Unnamed')}</td>
+          <td class="px-3 py-2 text-sm">${escapeHtml(h.url)}</td>
+          <td class="px-3 py-2 text-sm">${h.events.join(', ')}</td>
+          <td class="px-3 py-2 text-center text-sm">
+            <button onclick="editWebhook(${h.id})" class="text-blue-500 hover:text-blue-700 mr-2">✏️</button>
+            <button onclick="deleteWebhook(${h.id})" class="text-red-500 hover:text-red-700">🗑️</button>
+          </td>
+        </tr>
+      `).join('') : '<tr><td colspan="4" class="px-3 py-4 text-center text-[#57636C] dark:text-[#95A1AC] text-sm">No webhooks yet.</td></tr>';
+    }
+
+    function openAddWebhookForm() {
+      webhookEditingId = null;
+      document.getElementById('webhook-form-title').textContent = 'Add Webhook';
       document.getElementById('webhook-name').value = '';
       document.getElementById('webhook-url').value = '';
+      document.querySelectorAll('.webhook-event-cb').forEach(cb => cb.checked = false);
       webhookHeaders = [];
       renderWebhookHeaders();
-      loadWebhooks();
-      document.getElementById('webhooks-modal').classList.add('active');
+      document.getElementById('webhook-form-container').classList.remove('hidden');
+    }
+
+    async function editWebhook(id) {
+      const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const hooks = await res.json();
+      const hook = hooks.find(h => h.id == id);
+      if (!hook) return;
+      webhookEditingId = id;
+      document.getElementById('webhook-form-title').textContent = 'Edit Webhook';
+      document.getElementById('webhook-name').value = hook.name || '';
+      document.getElementById('webhook-url').value = hook.url || '';
+      document.querySelectorAll('.webhook-event-cb').forEach(cb => {
+        cb.checked = hook.events.includes(cb.value);
+      });
+      webhookHeaders = hook.headers ? [...hook.headers] : [];
+      renderWebhookHeaders();
+      document.getElementById('webhook-form-container').classList.remove('hidden');
+    }
+
+    function cancelWebhookForm() {
+      document.getElementById('webhook-form-container').classList.add('hidden');
     }
 
     function addWebhookHeader() { webhookHeaders.push({ key: '', value: '' }); renderWebhookHeaders(); }
@@ -1489,44 +1535,28 @@
       `).join('');
     }
 
-    async function loadWebhooks() {
-      const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, { headers: { 'Authorization': `Bearer ${token}` } });
-      const hooks = await res.json();
-      const list = document.getElementById('webhook-list');
-      list.innerHTML = hooks.length ? hooks.map(h => `
-        <div class="webhook-item">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="font-medium text-sm">${h.name || 'Unnamed'}</p>
-              <p class="text-xs text-[#57636C] dark:text-[#95A1AC]">${h.url}</p>
-              <p class="text-xs text-[#57636C] dark:text-[#95A1AC]">Events: ${h.events.join(', ')}</p>
-              ${h.headers && h.headers.length ? `<p class="text-xs text-[#57636C] dark:text-[#95A1AC]">Headers: ${h.headers.map(hd => `${hd.key}: ${hd.value}`).join(', ')}</p>` : ''}
-            </div>
-            <button onclick="deleteWebhook(${h.id})" class="text-red-400 hover:text-red-600 text-sm">Remove</button>
-          </div>
-        </div>
-      `).join('') : '<p class="text-[#57636C] dark:text-[#95A1AC] text-sm">No webhooks yet.</p>';
-    }
-
-    async function addWebhook() {
+    async function saveWebhook() {
       const name = document.getElementById('webhook-name').value.trim();
       const url = document.getElementById('webhook-url').value.trim();
       const events = Array.from(document.querySelectorAll('.webhook-event-cb:checked')).map(cb => cb.value);
       const headers = webhookHeaders.filter(h => h.key);
       if (!url || events.length === 0) return showToast('URL and at least one event required', true);
-      const res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, {
+
+      let res;
+      if (webhookEditingId) {
+        // Update existing – delete then re-add (simple approach)
+        await fetch(`${API_BASE}/api/webhooks/${webhookEditingId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      }
+      res = await fetch(`${API_BASE}/api/webhooks/${selectedTable}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ name, url, events, headers })
       });
       if (res.ok) {
-        loadWebhooks();
-        document.getElementById('webhook-name').value = '';
-        document.getElementById('webhook-url').value = '';
-        document.querySelectorAll('.webhook-event-cb').forEach(cb => cb.checked = false);
-        webhookHeaders = [];
-        renderWebhookHeaders();
-        showToast('Webhook added');
+        loadWebhooksTable();
+        cancelWebhookForm();
+        showToast(webhookEditingId ? 'Webhook updated' : 'Webhook added');
+        webhookEditingId = null;
       } else {
         const err = await res.json();
         showToast(err.error || 'Failed', true);
@@ -1534,9 +1564,14 @@
     }
 
     async function deleteWebhook(id) {
-      await fetch(`${API_BASE}/api/webhooks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      loadWebhooks();
-      showToast('Webhook removed');
+      if (!confirm('Delete this webhook?')) return;
+      const res = await fetch(`${API_BASE}/api/webhooks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        loadWebhooksTable();
+        showToast('Webhook deleted');
+      } else {
+        showToast('Failed', true);
+      }
     }
 
     // ======= LOGS =======
