@@ -69,13 +69,13 @@
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
 
-  <!-- Auth Container -->
+  <!-- Auth Container (Admin login) -->
   <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-[#1A1F24] rounded-xl shadow-xl space-y-4">
-    <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">My Database</h1>
-    <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+    <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">Admin Panel</h1>
+    <input type="email" id="email" placeholder="Admin Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
     <input type="password" id="password" placeholder="Password" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
     <div class="flex gap-2">
-      <button onclick="signUp()" class="flex-1 bg-[#091747] text-white py-3 rounded-lg font-semibold border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Sign Up</button>
+      <button onclick="signUp()" class="flex-1 bg-[#091747] text-white py-3 rounded-lg font-semibold border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Create Admin</button>
       <button onclick="signIn()" class="flex-1 bg-[#091747] text-white py-3 rounded-lg font-semibold border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Sign In</button>
     </div>
     <p id="auth-message" class="text-sm text-red-500 text-center"></p>
@@ -492,7 +492,6 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Privacy rules: { column, operator, reference, values, columns }
     let privacyRules = [];
     let currentPage = 1;
     let rowsPerPage = 10;
@@ -524,9 +523,9 @@
       setTimeout(() => t.style.display = 'none', 3000);
     }
 
-    function getUserRole() {
+    function getUserType() {
       if (!token) return '';
-      try { return JSON.parse(atob(token.split('.')[1])).role || ''; } catch { return ''; }
+      try { return JSON.parse(atob(token.split('.')[1])).type || ''; } catch { return ''; }
     }
 
     function showAuthMessage(msg) { document.getElementById('auth-message').textContent = msg; }
@@ -537,9 +536,9 @@
     }
 
     async function showApp() {
-      if (getUserRole() !== 'admin') {
+      if (getUserType() !== 'admin') {
         signOut();
-        showAuthMessage('Access denied. Admin only.');
+        showAuthMessage('Admin access required. Please sign in as a platform admin.');
         return;
       }
       document.getElementById('auth-container').classList.add('hidden');
@@ -570,7 +569,7 @@
       const password = document.getElementById('password').value;
       if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
-        const res = await fetch(`${API_BASE}/api/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const res = await fetch(`${API_BASE}/api/admin/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const data = await res.json();
         if (res.ok) {
           token = data.token;
@@ -588,7 +587,7 @@
       const password = document.getElementById('password').value;
       if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
-        const res = await fetch(`${API_BASE}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+        const res = await fetch(`${API_BASE}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const data = await res.json();
         if (res.ok) {
           token = data.token;
@@ -664,7 +663,7 @@
       const users = await res.json();
       const tbody = document.getElementById('users-table-body');
       if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No users yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No application users yet.</td></tr>';
       } else {
         tbody.innerHTML = users.map(u => `
           <tr class="border dark:border-gray-600">
@@ -696,8 +695,9 @@
       const email = document.getElementById('new-user-email').value.trim();
       const password = document.getElementById('new-user-password').value;
       if (!email || !password) return showToast('Email and password required', true);
-      const res = await fetch(`${API_BASE}/api/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
+      const res = await fetch(`${API_BASE}/api/data/users`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email, password })
       });
       if (res.ok) {
         closeModal('add-user-modal');
@@ -937,7 +937,7 @@
       const thead = document.getElementById('table-head');
       const tbody = document.getElementById('table-body');
       if (!selectedTable) return;
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
       thead.innerHTML = `<tr class="bg-[#091747] text-white text-sm">
         <th class="px-3 py-3 text-center"><input type="checkbox" class="row-select-all" onchange="toggleSelectAll(this)" /></th>
         <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>
@@ -1099,7 +1099,7 @@
         const allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string;
         return `<div class="flex items-center gap-2">
           <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-col" style="border-color:#324380;" onchange="updateFilterColumn(${i}, this.value)">
-            ${currentColumns.map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
+            ${currentColumns.filter(c => c.name !== 'password').map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
           </select>
           <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white filter-op" style="border-color:#324380;" onchange="updateFilterOp(${i}, this.value)">
             ${allowedOps.map(o => `<option value="${o}" ${f.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
@@ -1115,7 +1115,7 @@
     function updateFilterValue(idx, val) { activeFilters[idx].value = val; }
 
     function addFilterCondition() {
-      const firstCol = currentColumns[0]?.name || 'id';
+      const firstCol = currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id';
       activeFilters.push({ column: firstCol, operator: 'eq', value: '' });
       renderFilterConditions();
     }
@@ -1252,7 +1252,7 @@
       if (!table) return;
       document.getElementById('edit-table-name').textContent = table.name;
       const container = document.getElementById('edit-columns');
-      const colsToEdit = table.columns;
+      const colsToEdit = table.columns.filter(c => c.name !== 'password');
       container.innerHTML = colsToEdit.map(c => `
         <div class="flex items-center gap-2">
           <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
@@ -1286,7 +1286,7 @@
       const cols = [];
       for (let i = 0; i < nameInputs.length; i++) {
         const cn = nameInputs[i].value.trim();
-        if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value });
+        if (cn && cn !== 'password') cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value });
       }
       if (cols.length === 0) return showToast('At least one column required', true);
       const res = await fetch(`${API_BASE}/api/tables/${name}/schema`, {
@@ -1307,7 +1307,7 @@
     function openAddRowModal() {
       if (!selectedTable) { showToast('Please select a table first', true); return; }
       const fieldsDiv = document.getElementById('add-row-fields');
-      fieldsDiv.innerHTML = currentColumns.map(c => {
+      fieldsDiv.innerHTML = currentColumns.filter(c => c.name !== 'password').map(c => {
         const type = c.type || 'string';
         const def = c.default || '';
         let inputHtml = '';
@@ -1333,7 +1333,7 @@
 
     async function confirmAddRow() {
       const body = {};
-      currentColumns.forEach(c => {
+      currentColumns.filter(c => c.name !== 'password').forEach(c => {
         const el = document.getElementById(`modal-add-${c.name}`);
         if (el) body[c.name] = el.value;
       });
@@ -1344,7 +1344,7 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // Privacy rules (redesigned condition builder)
+    // Privacy rules (password columns hidden, no custom value)
     function getAuthColumns() {
       const base = ['Auth.ID', 'Auth.Email'];
       const usersMeta = allTables.find(t => t.name === 'users');
@@ -1376,7 +1376,7 @@
             let values = '';
             if (val === '@user_id') { reference = 'Auth.ID'; }
             else if (val === '@user_email') { reference = 'Auth.Email'; }
-            else { reference = 'Custom'; values = val; }
+            else { reference = ''; values = val; } // if not auth, treat as filter value
             const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === reference && r.values === values);
             if (!existing) {
               privacyRules.push({
@@ -1393,22 +1393,22 @@
       const colPerms = table?.column_permissions || {};
       privacyRules.forEach(rule => {
         rule.columns = {
-          read: colPerms.read ? [...colPerms.read] : [...currentColumns.map(c=>c.name), 'id'],
-          write: colPerms.write ? [...colPerms.write] : [...currentColumns.map(c=>c.name), 'id'],
-          update: colPerms.update ? [...colPerms.update] : [...currentColumns.map(c=>c.name), 'id'],
+          read: colPerms.read ? [...colPerms.read] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          write: colPerms.write ? [...colPerms.write] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          update: colPerms.update ? [...colPerms.update] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
           delete: colPerms.delete ? [...colPerms.delete] : []
         };
       });
       if (privacyRules.length === 0) {
         privacyRules.push({
-          column: currentColumns[0]?.name || 'id',
+          column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id',
           operator: 'eq',
           reference: 'Auth.ID',
           values: '',
           columns: {
-            read: [...currentColumns.map(c=>c.name), 'id'],
-            write: [...currentColumns.map(c=>c.name), 'id'],
-            update: [...currentColumns.map(c=>c.name), 'id'],
+            read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+            write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+            update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
             delete: []
           }
         });
@@ -1419,18 +1419,18 @@
 
     function renderPrivacyCards() {
       const container = document.getElementById('privacy-rules-container');
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
       const currentTableName = selectedTable;
 
       const authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join('');
       const dbOpts = allTables.map(t => {
-        return t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
+        return t.columns.filter(c => c.name !== 'password').map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
       }).join('');
-      const staticOpt = '<option value="Custom">Custom Value</option>';
-      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>${staticOpt}`;
+      // No "Custom Value" option; reference can only be Auth or a table column
+      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`;
 
       container.innerHTML = privacyRules.map((rule, idx) => {
-        const showValues = true;
+        const showValues = rule.reference && rule.reference.includes('.'); // show values input only if referencing a table column
         const allRead = allCols.every(c => rule.columns.read.includes(c));
         const allWrite = allCols.every(c => rule.columns.write.includes(c));
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
@@ -1448,11 +1448,13 @@
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">
               ${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}
             </select>
+            ${showValues ? `
             <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" 
                    value="${rule.values || ''}" 
                    placeholder="Specific Values (optional)" 
                    onchange="updatePrivacyValues(${idx}, this.value)" />
             <small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>
+            ` : ''}
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button>
           </div>
           <table class="mini-perms-table">
@@ -1482,22 +1484,22 @@
     }
 
     function checkAllPerms(cb, op, idx) {
-      const allCols = ['id', ...currentColumns.map(c => c.name)];
+      const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
       allCols.forEach(col => toggleRuleColumn(col, op, idx, cb.checked));
       renderPrivacyCards();
     }
 
     function addPrivacyRuleCard() {
-      const defaultCol = currentColumns[0]?.name || 'id';
+      const defaultCol = currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id';
       privacyRules.push({
         column: defaultCol,
         operator: 'eq',
         reference: 'Auth.ID',
         values: '',
         columns: {
-          read: [...currentColumns.map(c=>c.name), 'id'],
-          write: [...currentColumns.map(c=>c.name), 'id'],
-          update: [...currentColumns.map(c=>c.name), 'id'],
+          read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
+          update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'],
           delete: []
         }
       });
@@ -1523,10 +1525,9 @@
           let valuePart;
           if (r.reference === 'Auth.ID') valuePart = '@user_id';
           else if (r.reference === 'Auth.Email') valuePart = '@user_email';
-          else if (r.reference === 'Custom') valuePart = r.values || '';
-          else if (r.reference.includes('.')) valuePart = r.values || '';
-          else valuePart = r.values || '';
-          if (!valuePart) return '';
+          else if (r.reference && r.reference.includes('.')) valuePart = r.values || '';
+          else valuePart = r.values || ''; // fallback
+          if (!valuePart && !r.reference) return '';
           return `${r.column} ${r.operator} ${valuePart}`;
         }).filter(Boolean);
         payload[op] = conditions.join(' AND ');
@@ -1569,8 +1570,8 @@
       document.getElementById('api-table-name').textContent = selectedTable;
       const base = API_BASE;
       const exampleFields = {};
-      currentColumns.forEach(c => exampleFields[c.name] = 'value');
-      const firstCol = currentColumns[0]?.name || 'id';
+      currentColumns.filter(c => c.name !== 'password').forEach(c => exampleFields[c.name] = 'value');
+      const firstCol = currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id';
       const methods = [
         { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
         { method: 'POST', url: `/api/data/${selectedTable}`, desc: 'Insert a new row' },
@@ -1617,7 +1618,7 @@
     function updateApiSnippets() {
       const keyEl = document.getElementById('api-key-selector');
       const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
-      const firstCol = currentColumns[0]?.name || 'id';
+      const firstCol = currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id';
       const base = API_BASE;
       const methods = [
         { method: 'GET', url: `/api/data/${selectedTable}`, desc: 'Retrieve rows' },
@@ -1626,7 +1627,7 @@
         { method: 'DELETE', url: `/api/data/${selectedTable}/:id`, desc: 'Delete a row by ID' }
       ];
       const exampleFields = {};
-      currentColumns.forEach(c => exampleFields[c.name] = 'value');
+      currentColumns.filter(c => c.name !== 'password').forEach(c => exampleFields[c.name] = 'value');
 
       methods.forEach(m => {
         const curlEl = document.getElementById(`curl-${m.method}`);
@@ -1645,10 +1646,10 @@
     function openAuthApiModal() {
       const base = API_BASE;
       const methods = [
-        { method: 'POST', url: '/api/register', desc: 'Register a new user' },
-        { method: 'POST', url: '/api/login', desc: 'Login and receive token' },
-        { method: 'GET', url: '/api/data/users', desc: 'List all users' },
-        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user' },
+        { method: 'POST', url: '/api/register', desc: 'Register a new application user' },
+        { method: 'POST', url: '/api/login', desc: 'Login as application user' },
+        { method: 'GET', url: '/api/data/users', desc: 'List all application users' },
+        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user (admin)' },
         { method: 'PUT', url: '/api/data/users/:id', desc: 'Update a user' },
         { method: 'DELETE', url: '/api/data/users/:id', desc: 'Delete a user' }
       ];
@@ -1693,10 +1694,10 @@
       const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
       const base = API_BASE;
       const methods = [
-        { method: 'POST', url: '/api/register', desc: 'Register a new user' },
-        { method: 'POST', url: '/api/login', desc: 'Login and receive token' },
-        { method: 'GET', url: '/api/data/users', desc: 'List all users' },
-        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user' },
+        { method: 'POST', url: '/api/register', desc: 'Register a new application user' },
+        { method: 'POST', url: '/api/login', desc: 'Login as application user' },
+        { method: 'GET', url: '/api/data/users', desc: 'List all application users' },
+        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user (admin)' },
         { method: 'PUT', url: '/api/data/users/:id', desc: 'Update a user' },
         { method: 'DELETE', url: '/api/data/users/:id', desc: 'Delete a user' }
       ];
@@ -1850,7 +1851,7 @@
     // Export CSV
     function exportCSV() {
       if (!selectedTable || !currentRows.length) return showToast('No data', true);
-      const cols = ['id', ...currentColumns.map(c=>c.name)];
+      const cols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c=>c.name)];
       const csv = cols.join(',') + '\n' + currentRows.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const a = document.createElement('a');
@@ -1880,7 +1881,6 @@
       ws.onclose = () => setTimeout(connectWebSocket, 3000);
     }
 
-    // Helpers
     function escapeHtml(text) {
       if (text === null || text === undefined) return '';
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
