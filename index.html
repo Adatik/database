@@ -62,10 +62,7 @@
     .dark .nav-btn:hover { background-color: #1e293b; }
     .nav-btn.active { background-color: #091747; color: white; }
     .nav-btn.active:hover { background-color: #091747; }
-    /* sidebar tree */
-    .table-tree-item { padding-left: 1.5rem; font-size: 0.9rem; }
-    .table-tree-toggle { cursor: pointer; user-select: none; }
-    /* webhook headers */
+    .table-tree-toggle { cursor: pointer; user-select: none; display: inline-block; width: 16px; text-align: center; }
     .webhook-header-row { display: flex; gap: 4px; align-items: center; }
     .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
     #webhook-headers { overflow-x: hidden; max-width: 100%; }
@@ -482,20 +479,18 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Privacy rules: { column, operator, reference (dropdown value), values (comma string), columns (perms) }
+    // Privacy rules: { column, operator, reference (the selected value from third dropdown), values (comma string), columns (perms) }
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
     let rowsPerPage = 10;
     let totalRows = 0;
-    // activeFilters now includes a special entry for search (with id 'search')
-    let activeFilters = [];
+    let activeFilters = []; // includes search filter with id='search'
     let webhookHeaders = [];
     let selectedRows = new Set();
     let anonKeyValue = '...';
     let adminKeyValue = '...';
     let webhookEditingId = null;
-    // table tree expanded state
     let expandedTables = {};
 
     // ======= DARK MODE =======
@@ -535,7 +530,7 @@
       await loadAllTables();
       connectWebSocket();
       switchView('database');
-      // auto-select first table if none selected, but skip 'users'
+      // auto-select first table if none selected
       if (selectedTable && allTables.some(t => t.name === selectedTable)) {
         selectTable(selectedTable);
       } else if (allTables.length > 0) {
@@ -628,6 +623,10 @@
         navDb.classList.add('active');
         navAuth.classList.remove('active');
         loadAllTables();
+        // If no table selected, select first
+        if (!selectedTable && allTables.length > 0) {
+          selectTable(allTables[0].name);
+        }
       } else if (view === 'auth') {
         databaseSidebar.classList.add('hidden');
         authSidebar.classList.remove('hidden');
@@ -637,6 +636,7 @@
         authActions.classList.remove('hidden');
         navDb.classList.remove('active');
         navAuth.classList.add('active');
+        document.getElementById('current-table-name').textContent = 'Authentication';
         loadUsersTable();
       }
     }
@@ -647,15 +647,19 @@
       if (!res.ok) return showToast('Failed to load users', true);
       const users = await res.json();
       const tbody = document.getElementById('users-table-body');
-      tbody.innerHTML = users.map(u => `
-        <tr class="border dark:border-gray-600">
-          <td class="px-4 py-2 text-sm">${u.id}</td>
-          <td class="px-4 py-2 text-sm">${escapeHtml(u.email)}</td>
-          <td class="px-4 py-2 text-center">
-            <button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-sm">Delete</button>
-          </td>
-        </tr>
-      `).join('');
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No users yet.</td></tr>';
+      } else {
+        tbody.innerHTML = users.map(u => `
+          <tr class="border dark:border-gray-600">
+            <td class="px-4 py-2 text-sm">${u.id}</td>
+            <td class="px-4 py-2 text-sm">${escapeHtml(u.email)}</td>
+            <td class="px-4 py-2 text-center">
+              <button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-sm">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
     }
 
     async function deleteUser(id) {
@@ -706,11 +710,11 @@
         const isExpanded = expandedTables[t.name] || false;
         const item = document.createElement('div');
         item.innerHTML = `
-          <div class="flex items-center p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+          <div class="flex items-center p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer drag-item" data-table="${t.name}">
             <span class="drag-handle mr-1" draggable="true" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">⠿</span>
-            <span class="table-tree-toggle mr-1" onclick="toggleTableExpansion('${t.name}')">${isExpanded ? '▾' : '▸'}</span>
-            <span class="flex-1 truncate ${selectedTable===t.name ? 'font-bold' : ''}" onclick="selectTable('${t.name}')">📄 ${t.name}</span>
-            <div class="flex items-center space-x-1">
+            <span class="table-tree-toggle mr-1" onclick="event.stopPropagation(); toggleTableExpansion('${t.name}')">${isExpanded ? '▾' : '▸'}</span>
+            <span class="flex-1 truncate ${selectedTable===t.name ? 'font-bold' : ''}" onclick="event.stopPropagation(); selectTable('${t.name}')">📄 ${t.name}</span>
+            <div class="hidden group-hover:flex items-center space-x-1">
               <button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button>
               <button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button>
               <button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm" title="Delete">🗑️</button>
@@ -741,7 +745,7 @@
       renderTableTree();
     }
 
-    // drag & drop handlers (unchanged)
+    // drag & drop
     let dragSrcTable = null;
 
     function handleDragStart(e) {
@@ -797,7 +801,6 @@
       if (sortColumn) {
         url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`;
       }
-      // include active filters
       const nonSearchFilters = activeFilters.filter(f => f.id !== 'search');
       nonSearchFilters.forEach((f, i) => {
         url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
@@ -806,14 +809,26 @@
       if (res.status === 401) { signOut(); return; }
       currentRows = await res.json();
 
-      let countUrl = `${API_BASE}/api/data/${selectedTable}?count=true`;
-      nonSearchFilters.forEach((f, i) => {
-        countUrl += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
-      });
-      const countRes = await fetch(countUrl, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (countRes.ok) {
-        const { count } = await countRes.json();
-        totalRows = count;
+      // Apply search filter client-side if present
+      const searchFilter = activeFilters.find(f => f.id === 'search');
+      if (searchFilter && searchFilter.value) {
+        const q = searchFilter.value.toLowerCase();
+        const col = searchFilter.column;
+        currentRows = currentRows.filter(row => {
+          const val = row[col];
+          return val !== null && val !== undefined && val.toString().toLowerCase().includes(q);
+        });
+        totalRows = currentRows.length;
+      } else {
+        let countUrl = `${API_BASE}/api/data/${selectedTable}?count=true`;
+        nonSearchFilters.forEach((f, i) => {
+          countUrl += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
+        });
+        const countRes = await fetch(countUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (countRes.ok) {
+          const { count } = await countRes.json();
+          totalRows = count;
+        }
       }
       renderTable();
       renderPagination();
@@ -941,7 +956,7 @@
           </tr>`).join('');
     }
 
-    // Inline edit popup (unchanged)
+    // Inline edit popup
     function showEditPopup(cell, rowId, colName) {
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
       const oldValue = cell.textContent;
@@ -1056,10 +1071,9 @@
       fetchAndRenderRows();
     }
 
-    // ======= SEARCH & FILTER (now cooperative) =======
+    // ======= SEARCH & FILTER =======
     function applySearch() {
       const query = document.getElementById('search-input').value.trim();
-      // remove existing search filter
       activeFilters = activeFilters.filter(f => f.id !== 'search');
       if (query && currentColumns.length > 0) {
         activeFilters.push({ id: 'search', column: currentColumns[0]?.name || 'title', operator: 'contains', value: query });
@@ -1098,9 +1112,9 @@
       }).join('');
     }
 
-    function updateFilterColumn(idx, col) { activeFilters.filter(f => f.id !== 'search')[idx].column = col; renderFilterConditions(); }
-    function updateFilterOp(idx, op) { activeFilters.filter(f => f.id !== 'search')[idx].operator = op; }
-    function updateFilterValue(idx, val) { activeFilters.filter(f => f.id !== 'search')[idx].value = val; }
+    function updateFilterColumn(idx, col) { const explicit = activeFilters.filter(f => f.id !== 'search'); explicit[idx].column = col; renderFilterConditions(); }
+    function updateFilterOp(idx, op) { const explicit = activeFilters.filter(f => f.id !== 'search'); explicit[idx].operator = op; }
+    function updateFilterValue(idx, val) { const explicit = activeFilters.filter(f => f.id !== 'search'); explicit[idx].value = val; }
 
     function addFilterCondition() {
       const firstCol = currentColumns[0]?.name || 'id';
@@ -1110,7 +1124,9 @@
 
     function removeFilterCondition(index) {
       const explicit = activeFilters.filter(f => f.id !== 'search');
-      activeFilters = activeFilters.filter(f => f.id === 'search').concat(explicit.filter((_, i) => i !== index));
+      const searchFilters = activeFilters.filter(f => f.id === 'search');
+      explicit.splice(index, 1);
+      activeFilters = [...searchFilters, ...explicit];
       renderFilterConditions();
     }
 
@@ -1365,7 +1381,7 @@
             let values = '';
             if (val === '@user_id') { reference = 'Auth.ID'; }
             else if (val === '@user_email') { reference = 'Auth.Email'; }
-            else { reference = 'Static Value'; values = val; }
+            else { reference = 'Custom'; values = val; }
             const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === reference && r.values === values);
             if (!existing) {
               privacyRules.push({
@@ -1415,12 +1431,10 @@
       const dbOpts = allTables.map(t => {
         return t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
       }).join('');
-      const staticOpt = '<option value="Static Value">Static Value</option>';
 
-      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>${staticOpt}`;
+      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup><option value="Custom">Custom Value</option>`;
 
       container.innerHTML = privacyRules.map((rule, idx) => {
-        const showValues = true; // always show now
         const allRead = allCols.every(c => rule.columns.read.includes(c));
         const allWrite = allCols.every(c => rule.columns.write.includes(c));
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
@@ -1514,7 +1528,7 @@
           let valuePart;
           if (r.reference === 'Auth.ID') valuePart = '@user_id';
           else if (r.reference === 'Auth.Email') valuePart = '@user_email';
-          else if (r.reference === 'Static Value') valuePart = r.values || '';
+          else if (r.reference === 'Custom') valuePart = r.values || '';
           else if (r.reference.includes('.')) valuePart = r.values || '';
           else valuePart = r.values || '';
           if (!valuePart) return '';
@@ -1725,7 +1739,7 @@
         .catch(() => showToast('Failed to fetch keys', true));
     }
 
-    // ======= WEBHOOKS (unchanged) =======
+    // ======= WEBHOOKS =======
     async function openWebhooksModal() {
       if (!selectedTable) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
