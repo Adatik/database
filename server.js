@@ -82,17 +82,19 @@ async function initDb() {
       CREATE TABLE IF NOT EXISTS _webhooks (
         id SERIAL PRIMARY KEY,
         table_name TEXT NOT NULL,
-        url TEXT NOT NULL,
-        events TEXT NOT NULL DEFAULT '[]',
-        headers TEXT DEFAULT '[]'
+        url TEXT NOT NULL
       );
     `);
 
-    // Safe migrations
-    try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
+    // Migrations for _webhooks columns
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS events TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS headers TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS name TEXT DEFAULT ''"); } catch (e) {}
+    // Remove old singular 'event' column if it exists (caused the null constraint error)
+    try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
+
+    // Migrations for _tables
+    try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
 
     const exists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
     if (exists.rowCount === 0) {
@@ -130,7 +132,7 @@ function authMiddleware(req, res, next) {
     const tokenOrKey = authHeader.split(' ')[1];
     try {
       req.user = jwt.verify(tokenOrKey, JWT_SECRET);
-      req.user.admin = true;   // logged-in users are full admins
+      req.user.admin = true;
       return next();
     } catch (jwtErr) {
       if (tokenOrKey === ADMIN_KEY) {
@@ -345,7 +347,7 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Dynamic CRUD
+// ==================== DYNAMIC CRUD (FIXED PARAM INDEX) ====================
 app.get('/api/data/:table', authMiddleware, async (req, res) => {
   const table = req.params.table;
   try {
@@ -357,68 +359,68 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     const allowedCols = req.user.admin ? columns.map(c => c.name) : (colPerms.read || columns.map(c => c.name));
     const selectCols = ['id', 'user_id', ...allowedCols.filter(c => c !== 'id' && c !== 'user_id')];
 
-    // Count request
-    if (req.query.count === 'true') {
-      let countQuery = `SELECT COUNT(*) as total FROM "${table}"`;
-      const conditions = [];
-      const params = [];
-      let paramIndex = 1;
-      if (!req.user.admin && privacy.read) {
-        const { sql, params: ruleParams } = applyRule(privacy.read, req.user.id);
-        const replacedRule = sql.replace(/\$1/g, `$${paramIndex}`);
-        paramIndex++;
-        conditions.push(replacedRule);
-        params.push(ruleParams[0]);
-      }
-      const filters = parseFilters(req, allowedCols);
-      filters.conditions.forEach(cond => conditions.push(cond));
-      params.push(...filters.params);
-      if (conditions.length > 0) countQuery += ' WHERE ' + conditions.join(' AND ');
-      const result = await pool.query(countQuery, params);
-      return res.json({ count: parseInt(result.rows[0].total) });
-    }
-
-    let query = `SELECT ${selectCols.map(c => `"${c}"`).join(', ')} FROM "${table}"`;
+    let query;
     const conditions = [];
     const params = [];
     let paramIndex = 1;
 
+    // Count request
+    if (req.query.count === 'true') {
+      query = `SELECT COUNT(*) as total FROM "${table}"`;
+    } else {
+      query = `SELECT ${selectCols.map(c => `"${c}"`).join(', ')} FROM "${table}"`;
+    }
+
+    // Privacy rule (only for non-admin)
     if (!req.user.admin && privacy.read) {
       const { sql, params: ruleParams } = applyRule(privacy.read, req.user.id);
       const replacedRule = sql.replace(/\$1/g, `$${paramIndex}`);
-      paramIndex++;
       conditions.push(replacedRule);
       params.push(ruleParams[0]);
+      paramIndex++;
     }
 
-    const filters = parseFilters(req, allowedCols);
-    filters.conditions.forEach(cond => conditions.push(cond));
-    params.push(...filters.params);
+    // Filters
+    const filterResult = parseFilters(req, allowedCols, paramIndex);
+    conditions.push(...filterResult.conditions);
+    params.push(...filterResult.params);
+    paramIndex = filterResult.nextIndex;
 
-    if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
-
-    if (req.query.sort && allowedCols.includes(req.query.sort)) {
-      query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`;
-    } else {
-      query += ' ORDER BY id DESC';
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    if (req.query.limit) {
-      const limit = parseInt(req.query.limit) || 50;
-      const offset = parseInt(req.query.offset) || 0;
-      query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-      params.push(limit, offset);
+    // Sorting (only for data query)
+    if (req.query.count !== 'true') {
+      if (req.query.sort && allowedCols.includes(req.query.sort)) {
+        query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`;
+      } else {
+        query += ' ORDER BY id DESC';
+      }
+
+      // Pagination
+      if (req.query.limit) {
+        const limit = Math.max(0, parseInt(req.query.limit, 10) || 50);
+        const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+        query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+        params.push(limit, offset);
+      }
     }
 
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    if (req.query.count === 'true') {
+      res.json({ count: parseInt(result.rows[0].total) });
+    } else {
+      res.json(result.rows);
+    }
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-function parseFilters(req, columns) {
+function parseFilters(req, columns, startIndex) {
   const conditions = [];
   const params = [];
-  let paramIndex = 1;
+  let idx = startIndex;
+
   if (req.query.filter) {
     if (typeof req.query.filter === 'object' && !Array.isArray(req.query.filter)) {
       const keys = Object.keys(req.query.filter);
@@ -430,29 +432,29 @@ function parseFilters(req, columns) {
             const sqlOp = opMap[op] || '=';
             let condition;
             if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') {
-              condition = `"${f.column}" ${sqlOp} $${paramIndex}`;
+              condition = `"${f.column}" ${sqlOp} $${idx}`;
               params.push(`%${f.value}%`);
             } else {
-              condition = `"${f.column}" ${sqlOp} $${paramIndex}`;
+              condition = `"${f.column}" ${sqlOp} $${idx}`;
               params.push(f.value);
             }
             conditions.push(condition);
-            paramIndex++;
+            idx++;
           }
         });
-        return { conditions, params };
+        return { conditions, params, nextIndex: idx };
       }
     }
     // Fallback simple equality
     Object.entries(req.query.filter).forEach(([col, val]) => {
       if (columns.includes(col)) {
-        conditions.push(`"${col}" = $${paramIndex}`);
+        conditions.push(`"${col}" = $${idx}`);
         params.push(val);
-        paramIndex++;
+        idx++;
       }
     });
   }
-  return { conditions, params };
+  return { conditions, params, nextIndex: idx };
 }
 
 app.post('/api/data/:table', authMiddleware, async (req, res) => {
