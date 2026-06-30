@@ -44,7 +44,7 @@
     #data-table-container { overflow: visible !important; }
     td { position: relative; }
     .privacy-rule-card {
-      border: 1px solid #e2e8f0;
+      border: 1px solid #324380;
       border-radius: 12px;
       padding: 12px;
       margin-bottom: 12px;
@@ -212,7 +212,7 @@
 
         <!-- Authentication Table Area (hidden by default) -->
         <div id="auth-table-area" class="hidden">
-          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden">
+          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden mb-6">
             <table class="w-full" id="users-table">
               <thead>
                 <tr class="bg-[#091747] text-white text-sm">
@@ -224,6 +224,24 @@
               <tbody id="users-table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
             </table>
           </div>
+          <!-- Auth API section -->
+          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm p-6 border-2 border-[#324380]">
+            <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Auth API</h3>
+            <div class="space-y-4 text-sm">
+              <div>
+                <p class="font-medium">POST /api/register</p>
+                <p class="text-[#57636C] dark:text-[#95A1AC]">Body: { email, password }</p>
+              </div>
+              <div>
+                <p class="font-medium">POST /api/login</p>
+                <p class="text-[#57636C] dark:text-[#95A1AC]">Body: { email, password }</p>
+              </div>
+              <div>
+                <p class="font-medium">DELETE /api/data/users/:id</p>
+                <p class="text-[#57636C] dark:text-[#95A1AC]">Delete a user by ID</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -232,7 +250,7 @@
   <!-- Toast -->
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
-  <!-- ============= MODALS (same as before) ============= -->
+  <!-- ============= MODALS ============= -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
@@ -296,7 +314,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (with value field) -->
+  <!-- Privacy Modal (redesigned) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -338,8 +356,8 @@
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
       <h3 id="webhook-form-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add Webhook</h3>
       <div class="space-y-3">
-        <input id="webhook-name" placeholder="Webhook name (optional)" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
-        <input id="webhook-url" placeholder="URL" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        <input id="webhook-name" placeholder="Webhook name (optional)" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <input id="webhook-url" placeholder="URL" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
         <div>
           <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Events</label>
           <div class="flex gap-2 mt-1">
@@ -350,7 +368,7 @@
         </div>
         <div>
           <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Headers</label>
-          <div id="webhook-headers" class="space-y-2 mt-1"></div>
+          <div id="webhook-headers" class="space-y-2 mt-1 max-h-40 overflow-y-auto"></div>
           <button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline mt-1">+ Add header</button>
         </div>
         <div class="flex gap-2">
@@ -421,8 +439,8 @@
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add User</h3>
       <div class="space-y-3">
-        <input id="new-user-email" placeholder="Email" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
-        <input id="new-user-password" type="password" placeholder="Password" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        <input id="new-user-email" placeholder="Email" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <input id="new-user-password" type="password" placeholder="Password" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
       </div>
       <div class="flex gap-2 mt-4">
         <button onclick="addUser()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Add User</button>
@@ -459,6 +477,7 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
+    // Privacy rules: { column, operator, valueType: 'specific'|'@user_id', value: '' }
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
@@ -1318,7 +1337,7 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (comma-separated value field) =======
+    // ======= PRIVACY (redesigned with three dropdowns + optional input) =======
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -1329,15 +1348,24 @@
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
-            if (!privacyRules.find(r => r.condition === condition)) {
+            const parts = condition.split(' ');
+            const col = parts[0] || '';
+            const opVal = parts[1] || 'eq';
+            const val = parts.slice(2).join(' ') || '';
+            const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.value === val);
+            if (!existing) {
               privacyRules.push({
-                condition,
+                column: col,
+                operator: opVal,
+                valueType: val === '@user_id' ? '@user_id' : 'specific',
+                value: val === '@user_id' ? '' : val,
                 columns: { read: [], write: [], update: [], delete: [] }
               });
             }
           });
         }
       });
+      // Initialize column permissions from table settings
       const colPerms = table?.column_permissions || {};
       privacyRules.forEach(rule => {
         rule.columns = {
@@ -1349,7 +1377,10 @@
       });
       if (privacyRules.length === 0) {
         privacyRules.push({
-          condition: `${currentColumns[0]?.name || 'id'} eq @user_id`,
+          column: currentColumns[0]?.name || 'id',
+          operator: 'eq',
+          valueType: '@user_id',
+          value: '',
           columns: {
             read: [...currentColumns.map(c=>c.name), 'id'],
             write: [...currentColumns.map(c=>c.name), 'id'],
@@ -1371,31 +1402,24 @@
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
         const allDelete = allCols.every(c => rule.columns.delete.includes(c));
 
-        const conditionParts = rule.condition.split(' ');
-        const currentCol = conditionParts[0] || '';
-        const currentOp = conditionParts[1] || 'eq';
-        const currentValues = conditionParts.slice(2).join(' ') || '';
-
         return `
         <div class="privacy-rule-card">
           <div class="flex items-center gap-2 mb-3">
-            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyCondition(${idx}, this)" style="border-color:#324380;">
-              ${allCols.map(c => `<option value="${c}" ${currentCol === c ? 'selected' : ''}>${c}</option>`).join('')}
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyColumn(${idx}, this)" style="border-color:#324380;">
+              ${allCols.map(c => `<option value="${c}" ${rule.column === c ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
-              ${(TYPE_OPERATORS[currentColumns.find(c => currentCol === c)?.type] || OPERATORS).map(o => `<option value="${o}" ${currentOp === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
+              ${(TYPE_OPERATORS[currentColumns.find(c => rule.column === c)?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
             </select>
-            <div class="flex-1 flex gap-1">
-              <input class="border p-1 rounded text-sm w-full dark:bg-[#1A1F24] dark:text-white" 
-                     id="privacy-value-input-${idx}" 
-                     value="${currentValues}" 
-                     placeholder="Comma-separated values, empty=no filter"
-                     onchange="updatePrivacyValue(${idx}, this.value)" 
-                     style="border-color:#324380;" />
-              <button onclick="document.getElementById('privacy-value-input-${idx}').value = '@user_id'; updatePrivacyValue(${idx}, '@user_id')" 
-                      class="px-2 py-1 text-xs bg-[#091747] text-white border border-[#324380] rounded hover:bg-[#324380]" 
-                      style="white-space:nowrap;">@user_id</button>
-            </div>
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyValueType(${idx}, this.value)">
+              <option value="@user_id" ${rule.valueType === '@user_id' ? 'selected' : ''}>@user_id</option>
+              <option value="specific" ${rule.valueType === 'specific' ? 'selected' : ''}>Specific value</option>
+            </select>
+            ${rule.valueType === 'specific' ? `
+            <input class="border p-1 rounded text-sm w-32 dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" 
+                   value="${rule.value || ''}" 
+                   placeholder="Value" 
+                   onchange="updatePrivacyValue(${idx}, this.value)" />` : ''}
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
           </div>
           <table class="mini-perms-table">
@@ -1433,7 +1457,10 @@
     function addPrivacyRuleCard() {
       const defaultCol = currentColumns[0]?.name || 'id';
       privacyRules.push({
-        condition: `${defaultCol} eq @user_id`,
+        column: defaultCol,
+        operator: 'eq',
+        valueType: '@user_id',
+        value: '',
         columns: {
           read: [...currentColumns.map(c=>c.name), 'id'],
           write: [...currentColumns.map(c=>c.name), 'id'],
@@ -1450,30 +1477,26 @@
       else { privacyRules[idx].columns[op] = arr.filter(c => c !== col); }
     }
 
-    function updatePrivacyCondition(idx, selectEl) {
-      const parts = privacyRules[idx].condition.split(' ');
-      parts[0] = selectEl.value;
-      privacyRules[idx].condition = parts.join(' ');
+    function updatePrivacyColumn(idx, selectEl) { privacyRules[idx].column = selectEl.value; }
+    function updatePrivacyOperator(idx, op) { privacyRules[idx].operator = op; }
+    function updatePrivacyValueType(idx, type) {
+      privacyRules[idx].valueType = type;
+      if (type === '@user_id') privacyRules[idx].value = '';
+      renderPrivacyCards();
     }
-
-    function updatePrivacyOperator(idx, op) {
-      const parts = privacyRules[idx].condition.split(' ');
-      parts[1] = op;
-      privacyRules[idx].condition = parts.join(' ');
-    }
-
-    function updatePrivacyValue(idx, value) {
-      const parts = privacyRules[idx].condition.split(' ');
-      parts[2] = value;
-      privacyRules[idx].condition = parts.join(' ');
-    }
+    function updatePrivacyValue(idx, value) { privacyRules[idx].value = value; }
 
     function deletePrivacyRule(idx) { privacyRules.splice(idx,1); renderPrivacyCards(); }
 
     async function savePrivacyRules() {
       const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
       ['read','write','update','delete'].forEach(op => {
-        payload[op] = privacyRules.filter(r => r.columns[op].length > 0).map(r => r.condition).join(' AND ');
+        const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => {
+          const val = r.valueType === '@user_id' ? '@user_id' : (r.value || '');
+          if (r.valueType === 'specific' && !val) return ''; // skip if no value typed
+          return `${r.column} ${r.operator} ${val}`;
+        }).filter(Boolean);
+        payload[op] = conditions.join(' AND ');
       });
       const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() };
       privacyRules.forEach(rule => {
@@ -1654,8 +1677,8 @@
       const container = document.getElementById('webhook-headers');
       container.innerHTML = webhookHeaders.map((h, i) => `
         <div class="flex gap-2">
-          <input placeholder="Key" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" value="${h.key}" onchange="webhookHeaders[${i}].key = this.value" />
-          <input placeholder="Value" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" value="${h.value}" onchange="webhookHeaders[${i}].value = this.value" />
+          <input placeholder="Key" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" value="${h.key}" onchange="webhookHeaders[${i}].key = this.value" />
+          <input placeholder="Value" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" value="${h.value}" onchange="webhookHeaders[${i}].value = this.value" />
           <button onclick="webhookHeaders.splice(${i},1); renderWebhookHeaders()" class="text-red-400 hover:text-red-600">✕</button>
         </div>
       `).join('');
