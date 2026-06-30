@@ -106,34 +106,25 @@ async function initDb() {
     try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
     try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
 
-    // Ensure system admin exists (first admin seeded if none)
-    const adminCount = await client.query('SELECT COUNT(*) FROM admins');
-    if (parseInt(adminCount.rows[0].count) === 0) {
-      const hash = await bcrypt.hash('admin', SALT_ROUNDS);
-      await client.query("INSERT INTO admins (email, password) VALUES ('admin@localhost', $1)", [hash]);
-      startupLog('Default admin created: admin@localhost / admin');
-    }
-
     // Ensure a system user exists in users table for admin CRUD operations
-    // This user is not shown in Auth Users page (filtered later)
     const sysUser = await client.query("SELECT id FROM users WHERE email = 'system_admin@internal'");
     if (sysUser.rowCount === 0) {
       const hash = await bcrypt.hash('unused', SALT_ROUNDS);
-      const insert = await client.query(
-        "INSERT INTO users (email, password) VALUES ('system_admin@internal', $1) RETURNING id",
+      await client.query(
+        "INSERT INTO users (email, password) VALUES ('system_admin@internal', $1)",
         [hash]
       );
       startupLog('System user created for admin operations.');
     }
 
     // Register users table metadata (without password column)
-    const userMetaExists = await client.query("SELECT 1 FROM _tables WHERE name = 'users'");
-    if (userMetaExists.rowCount === 0) {
+    const userMetaRes = await client.query("SELECT columns FROM _tables WHERE name = 'users'");
+    if (userMetaRes.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
         VALUES ('users', '[{"name":"email","type":"string"}]', '{}', '{}', 9999)`);
     } else {
-      // Ensure password column is not in metadata
-      let cols = JSON.parse(userMetaExists.rows[0].columns);
+      let cols = JSON.parse(userMetaRes.rows[0].columns);
+      // Ensure password is never in metadata
       cols = cols.filter(c => c.name !== 'password');
       if (!cols.find(c => c.name === 'email')) {
         cols.unshift({ name: 'email', type: 'string' });
@@ -433,15 +424,25 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
     if (table.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
 
     const oldCols = JSON.parse(table.rows[0].columns);
-    // For users table, never allow password to be included
     if (oldName === 'users') {
-      // Filter out any attempt to add password
       const filtered = columns.filter(c => c.name !== 'password');
-      // Ensure email is always present
       if (!filtered.find(c => c.name === 'email')) {
         filtered.unshift({ name: 'email', type: 'string' });
       }
-      return finishSchema(oldName, filtered, oldCols, res);
+      const newCols = filtered.filter(c => !oldCols.find(oc => oc.name === c.name));
+      for (const c of newCols) {
+        const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        const type = mapType(c.type);
+        let def = '';
+        if (c.default !== undefined && c.default !== '') {
+          if (type === 'BOOLEAN') def = ` DEFAULT ${c.default === 'true' ? 'TRUE' : 'FALSE'}`;
+          else if (type === 'INTEGER' || type === 'REAL') def = ` DEFAULT ${c.default}`;
+          else def = ` DEFAULT '${c.default.replace(/'/g, "''")}'`;
+        }
+        await pool.query(`ALTER TABLE "${oldName}" ADD COLUMN "${colName}" ${type}${def}`).catch(() => {});
+      }
+      await pool.query('UPDATE _tables SET columns = $1 WHERE name = $2', [JSON.stringify(filtered), oldName]);
+      return res.json({ name: oldName, columns: filtered });
     }
 
     const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
@@ -460,23 +461,6 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
     res.json({ name: oldName, columns });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
-
-async function finishSchema(name, columns, oldCols, res) {
-  const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
-  for (const c of newCols) {
-    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-    const type = mapType(c.type);
-    let def = '';
-    if (c.default !== undefined && c.default !== '') {
-      if (type === 'BOOLEAN') def = ` DEFAULT ${c.default === 'true' ? 'TRUE' : 'FALSE'}`;
-      else if (type === 'INTEGER' || type === 'REAL') def = ` DEFAULT ${c.default}`;
-      else def = ` DEFAULT '${c.default.replace(/'/g, "''")}'`;
-    }
-    await pool.query(`ALTER TABLE "${name}" ADD COLUMN "${colName}" ${type}${def}`).catch(() => {});
-  }
-  await pool.query('UPDATE _tables SET columns = $1 WHERE name = $2', [JSON.stringify(columns), name]);
-  res.json({ name, columns });
-}
 
 // ==================== DYNAMIC CRUD ====================
 app.get('/api/data/:table', authMiddleware, async (req, res) => {
@@ -621,7 +605,6 @@ app.post('/api/data/:table', authMiddleware, async (req, res) => {
     const fields = columns.filter(c => req.body[c.name] !== undefined);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
 
-    // Get system user id for admin inserts
     let userId = req.user.id;
     if (req.user.admin && !isUsersTable) {
       const sys = await pool.query("SELECT id FROM users WHERE email = 'system_admin@internal'");
