@@ -93,16 +93,16 @@ async function initDb() {
     try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
     try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
 
-    // Ensure users table metadata exists so Auth page can list users
+    // Ensure the users table is registered in _tables (for auth page metadata)
     const userMetaExists = await client.query("SELECT 1 FROM _tables WHERE name = 'users'");
     if (userMetaExists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
         VALUES ('users', '[{"name":"email","type":"string"}]', '{}', '{}', 9999)`);
-      startupLog('Registered users table in _tables');
     }
 
-    const exists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
-    if (exists.rowCount === 0) {
+    // Create a sample items table if not exists
+    const itemsExists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
+    if (itemsExists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
         VALUES ('items', '[{"name":"title","type":"string"}]', '{}', '{"read":["title"],"write":["title"],"update":["title"]}', 0)`);
       await client.query(`CREATE TABLE items (
@@ -117,7 +117,7 @@ async function initDb() {
   }
 }
 
-// Auth middleware – JWT users are admin, API keys are checked
+// Auth middleware
 function authMiddleware(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
@@ -136,7 +136,7 @@ function authMiddleware(req, res, next) {
     const tokenOrKey = authHeader.split(' ')[1];
     try {
       req.user = jwt.verify(tokenOrKey, JWT_SECRET);
-      req.user.admin = true;   // logged-in users are full admins
+      req.user.admin = true;
       return next();
     } catch (jwtErr) {
       if (tokenOrKey === ADMIN_KEY) {
@@ -164,21 +164,25 @@ const opMap = {
   'not_contains': 'NOT LIKE'
 };
 
-function applyRule(rule, userId) {
+function applyRule(rule, userId, userEmail) {
   if (!rule || !rule.trim()) return null;
+  // Replace @user_id and @user_email with actual values
+  let processed = rule.replace(/@user_id/g, userId.toString());
+  processed = processed.replace(/@user_email/g, userEmail || '');
+
   // Handle IN clause for multiple values
-  if (rule.includes(' eq ')) {
-    const parts = rule.split(' ');
+  if (processed.includes(' eq ')) {
+    const parts = processed.split(' ');
     const col = parts[0];
     const valuePart = parts.slice(2).join(' ');
     if (valuePart.includes(',')) {
-      const values = valuePart.split(',').map(v => v.trim().replace(/@user_id/g, userId));
+      const values = valuePart.split(',').map(v => v.trim());
       const placeholders = values.map((_, i) => `$${i + 1}`);
       return { sql: `"${col}" IN (${placeholders.join(',')})`, params: values };
     }
   }
 
-  let sql = rule.replace(/@user_id/g, '$1');
+  let sql = processed;
   const parts = sql.split(' ');
   if (parts.length >= 3 && opMap[parts[1]]) {
     parts[1] = opMap[parts[1]];
@@ -187,7 +191,7 @@ function applyRule(rule, userId) {
     }
     sql = parts.join(' ');
   }
-  return { sql, params: [userId] };
+  return { sql, params: [] }; // no params needed here because values already substituted
 }
 
 function mapType(type) {
@@ -234,7 +238,10 @@ app.post('/api/login', async (req, res) => {
 // ==================== TABLE MANAGEMENT ====================
 app.get('/api/tables', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query('SELECT name, columns, privacy, column_permissions, sort_order FROM _tables ORDER BY sort_order, id');
+    // Do not expose the internal 'users' table as a regular data table
+    const result = await pool.query(
+      "SELECT name, columns, privacy, column_permissions, sort_order FROM _tables WHERE name != 'users' ORDER BY sort_order, id"
+    );
     res.json(result.rows.map(t => ({
       name: t.name,
       columns: JSON.parse(t.columns),
@@ -251,6 +258,7 @@ app.post('/api/tables', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Name and at least one column required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
+  if (safeName === 'users') return res.status(400).json({ error: 'Table name reserved' });
 
   const colDefs = columns.map(c => {
     const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -265,7 +273,7 @@ app.post('/api/tables', authMiddleware, async (req, res) => {
   }).join(', ');
 
   try {
-    await pool.query(`CREATE TABLE "${safeName}" (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, ${colDefs})`);
+    await pool.query(`CREATE TABLE "${safeName}" (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), ${colDefs})`);
     const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) as max FROM _tables');
     const nextOrder = maxOrder.rows[0].max + 1;
     const columnPerms = { read: columns.map(c => c.name), write: columns.map(c => c.name), update: columns.map(c => c.name) };
@@ -283,7 +291,8 @@ app.put('/api/tables/order', authMiddleware, async (req, res) => {
     try {
       await client.query('BEGIN');
       for (let i = 0; i < order.length; i++) {
-        await client.query('UPDATE _tables SET sort_order = $1 WHERE name = $2', [i, order[i]]);
+        // Prevent reordering the internal users table
+        await client.query('UPDATE _tables SET sort_order = $1 WHERE name = $2 AND name != \'users\'', [i, order[i]]);
       }
       await client.query('COMMIT');
       res.json({ success: true });
@@ -296,6 +305,7 @@ app.put('/api/tables/order', authMiddleware, async (req, res) => {
 
 app.delete('/api/tables/:name', authMiddleware, async (req, res) => {
   const name = req.params.name;
+  if (name === 'users') return res.status(400).json({ error: 'Cannot delete users table' });
   try {
     const exists = await pool.query('SELECT name FROM _tables WHERE name = $1', [name]);
     if (exists.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
@@ -308,6 +318,7 @@ app.delete('/api/tables/:name', authMiddleware, async (req, res) => {
 
 app.put('/api/tables/:name', authMiddleware, async (req, res) => {
   const oldName = req.params.name;
+  if (oldName === 'users') return res.status(400).json({ error: 'Cannot rename users table' });
   const { newName } = req.body;
   if (!newName) return res.status(400).json({ error: 'New name required' });
   const safeNew = newName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -315,7 +326,6 @@ app.put('/api/tables/:name', authMiddleware, async (req, res) => {
   try {
     const exists = await pool.query('SELECT name FROM _tables WHERE name = $1', [safeNew]);
     if (exists.rowCount > 0) return res.status(400).json({ error: 'Table name already exists' });
-
     await pool.query('UPDATE _tables SET name = $1 WHERE name = $2', [safeNew, oldName]);
     await pool.query(`ALTER TABLE "${oldName}" RENAME TO "${safeNew}"`);
     await pool.query('UPDATE _webhooks SET table_name = $1 WHERE table_name = $2', [safeNew, oldName]);
@@ -342,7 +352,6 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
   try {
     const table = await pool.query('SELECT * FROM _tables WHERE name = $1', [oldName]);
     if (table.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
-
     const oldCols = JSON.parse(table.rows[0].columns);
     const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
     for (const c of newCols) {
@@ -371,6 +380,7 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     const privacy = JSON.parse(meta.rows[0].privacy || '{}');
     const colPerms = JSON.parse(meta.rows[0].column_permissions || '{}');
     const allowedCols = req.user.admin ? columns.map(c => c.name) : (colPerms.read || columns.map(c => c.name));
+    // Always include id and user_id in the select set (but id is already present)
     const selectCols = ['id', 'user_id', ...allowedCols.filter(c => c !== 'id' && c !== 'user_id')];
 
     let query;
@@ -386,10 +396,9 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
 
     // Privacy only for non-admin
     if (!req.user.admin && privacy.read) {
-      const ruleResult = applyRule(privacy.read, req.user.id);
+      const ruleResult = applyRule(privacy.read, req.user.id, req.user.email);
       if (ruleResult) {
-        const replacedRule = ruleResult.sql.replace(/\$1/g, `$${paramIndex}`);
-        conditions.push(replacedRule);
+        conditions.push(ruleResult.sql);
         allParams.push(...ruleResult.params);
         paramIndex += ruleResult.params.length;
       }
@@ -404,7 +413,9 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
     if (req.query.count !== 'true') {
-      if (req.query.sort && allowedCols.includes(req.query.sort)) {
+      // sorting: allow id and user_id as well
+      const sortableCols = ['id', 'user_id', ...allowedCols.filter(c => c !== 'id' && c !== 'user_id')];
+      if (req.query.sort && sortableCols.includes(req.query.sort)) {
         query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`;
       } else {
         query += ' ORDER BY id DESC';
@@ -515,9 +526,9 @@ app.put('/api/data/:table/:id', authMiddleware, async (req, res) => {
 
     if (!req.user.admin) {
       if (privacy.update) {
-        const ruleResult = applyRule(privacy.update, req.user.id);
+        const ruleResult = applyRule(privacy.update, req.user.id, req.user.email);
         if (ruleResult) {
-          const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${ruleResult.sql.replace(/\$1/g, '$2')}`, [id, ...ruleResult.params]);
+          const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${ruleResult.sql}`, [id, ...ruleResult.params]);
           if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden by update rule' });
         }
       }
@@ -556,9 +567,9 @@ app.delete('/api/data/:table/:id', authMiddleware, async (req, res) => {
     if (oldRow.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
 
     if (!req.user.admin && privacy.delete) {
-      const ruleResult = applyRule(privacy.delete, req.user.id);
+      const ruleResult = applyRule(privacy.delete, req.user.id, req.user.email);
       if (ruleResult) {
-        const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${ruleResult.sql.replace(/\$1/g, '$2')}`, [id, ...ruleResult.params]);
+        const check = await pool.query(`SELECT 1 FROM "${table}" WHERE id = $1 AND ${ruleResult.sql}`, [id, ...ruleResult.params]);
         if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden by delete rule' });
       }
     }
