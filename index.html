@@ -29,6 +29,9 @@
     th { cursor: pointer; user-select: none; }
     th:hover { background-color: rgba(0,0,0,0.05); }
     .dark th:hover { background-color: rgba(255,255,255,0.05); }
+    .drag-handle { cursor: grab; padding: 0 4px; color: #9ca3af; }
+    .drag-handle:active { cursor: grabbing; }
+    .dragging { opacity: 0.5; }
     .edit-popup { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
     .dark .edit-popup { background: #1A1F24; border-color: #374151; }
     .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
@@ -40,7 +43,13 @@
     table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
     #data-table-container { overflow: visible !important; }
     td { position: relative; }
-    .privacy-rule-card { border: 1px solid #324380; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: white; }
+    .privacy-rule-card {
+      border: 1px solid #324380;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: white;
+    }
     .dark .privacy-rule-card { background: #1A1F24; border-color: #374151; }
     .mini-perms-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     .mini-perms-table th, .mini-perms-table td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; }
@@ -509,6 +518,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete Project Modal -->
+  <div id="delete-project-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Project</h3>
+      <p class="text-sm mb-3">This action cannot be undone. All data will be permanently deleted.</p>
+      <input type="hidden" id="delete-project-id" />
+      <input type="password" id="delete-project-password" placeholder="Enter your account password" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" />
+      <p id="delete-project-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2">
+        <button onclick="confirmDeleteProject()" class="bg-red-600 text-white px-4 py-2 rounded-lg flex-1">Delete</button>
+        <button onclick="closeModal('delete-project-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
     <script>
     // ================ GLOBALS ================
     const API_BASE = window.location.origin;
@@ -594,6 +618,32 @@
       try { return JSON.parse(atob(token.split('.')[1])).email || ''; } catch { return ''; }
     }
 
+    // Clear all state on sign out
+    function clearAllState() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('activeProjectId');
+      localStorage.removeItem('selectedTable');
+      token = null;
+      activeProjectId = null;
+      selectedTable = null;
+      allTables = [];
+      currentColumns = [];
+      currentRows = [];
+      sortColumn = null;
+      sortAsc = true;
+      activeFilters = [];
+      authFilters = [];
+      selectedRows.clear();
+      currentPage = 1;
+      totalRows = 0;
+      if (ws) { ws.close(); ws = null; }
+    }
+
+    function signOut() {
+      clearAllState();
+      showAuth();
+    }
+
     window.addEventListener('load', async () => {
       const configRes = await fetch(`${API_BASE}/api/platform/config`);
       const config = await configRes.json();
@@ -641,17 +691,6 @@
           showAuthMessage(data.error || 'Invalid credentials.');
         }
       } catch (err) { showAuthMessage('Network error.'); }
-    }
-
-    function signOut() {
-      localStorage.removeItem('token');
-      localStorage.removeItem('activeProjectId');
-      localStorage.removeItem('selectedTable');
-      token = null;
-      activeProjectId = null;
-      selectedTable = null;
-      if (ws) ws.close();
-      showAuth();
     }
 
     document.addEventListener('click', function(e) {
@@ -751,6 +790,7 @@
                 <div class="flex gap-2 mt-2">
                   <button onclick="enterProject(${p.id})" class="flex-1 brand-btn py-1 rounded text-sm">Open</button>
                   <button onclick="editProject(${p.id})" class="brand-outline-btn px-3 py-1 rounded text-sm">✏️</button>
+                  <button onclick="promptDeleteProject(${p.id})" class="text-red-500 hover:text-red-700 text-sm" title="Delete">🗑️</button>
                 </div>
               </div>`;
           }).join('');
@@ -758,6 +798,43 @@
             grid.innerHTML = '<p class="text-gray-500 dark:text-gray-400 col-span-full text-center">No projects yet. Create your first project.</p>';
           }
         });
+    }
+
+    function promptDeleteProject(projectId) {
+      document.getElementById('delete-project-id').value = projectId;
+      document.getElementById('delete-project-password').value = '';
+      document.getElementById('delete-project-error').classList.add('hidden');
+      document.getElementById('delete-project-modal').classList.add('active');
+    }
+
+    async function confirmDeleteProject() {
+      const projectId = document.getElementById('delete-project-id').value;
+      const password = document.getElementById('delete-project-password').value;
+      if (!password) {
+        document.getElementById('delete-project-error').textContent = 'Password required';
+        document.getElementById('delete-project-error').classList.remove('hidden');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/platform/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ password })
+      });
+      if (res.ok) {
+        closeModal('delete-project-modal');
+        if (activeProjectId == projectId) {
+          activeProjectId = null;
+          localStorage.removeItem('activeProjectId');
+          selectedTable = null;
+          localStorage.removeItem('selectedTable');
+        }
+        loadProjects();
+        showToast('Project deleted');
+      } else {
+        const err = await res.json();
+        document.getElementById('delete-project-error').textContent = err.error || 'Failed to delete';
+        document.getElementById('delete-project-error').classList.remove('hidden');
+      }
     }
 
     function enterProject(projectId) {
@@ -801,10 +878,18 @@
         databaseActions.classList.remove('hidden');
         databaseArea.classList.remove('hidden');
         sidebar.classList.remove('hidden');
-        document.getElementById('current-table-name').textContent = selectedTable || 'Select a table';
-        loadAllTables();
-        if (!selectedTable && allTables.length > 0) selectTable(allTables[0].name);
-        else if (selectedTable && allTables.some(t => t.name === selectedTable)) selectTable(selectedTable);
+        loadAllTables().then(() => {
+          if (selectedTable && allTables.some(t => t.name === selectedTable)) {
+            selectTable(selectedTable);
+          } else if (allTables.length > 0) {
+            selectTable(allTables[0].name);
+          } else {
+            document.getElementById('current-table-name').textContent = 'Select a table';
+            document.getElementById('no-table-selected').classList.remove('hidden');
+            document.getElementById('data-table-container').classList.add('hidden');
+            document.getElementById('pagination').classList.add('hidden');
+          }
+        });
       } else if (view === 'auth') {
         navAuth.classList.add('active');
         authActions.classList.remove('hidden');
@@ -827,11 +912,8 @@
       // Apply client-side search & filters
       const searchTerm = document.getElementById('auth-search-input')?.value.trim().toLowerCase();
       if (searchTerm) {
-        users = users.filter(u => {
-          return Object.values(u).some(v => v !== null && v !== undefined && v.toString().toLowerCase().includes(searchTerm));
-        });
+        users = users.filter(u => Object.values(u).some(v => v !== null && v !== undefined && v.toString().toLowerCase().includes(searchTerm)));
       }
-      // Apply auth filters
       authFilters.forEach(f => {
         users = users.filter(u => {
           const val = u[f.column];
@@ -972,8 +1054,12 @@
     function applyAuthSearch() { loadUsersTable(); }
     function toggleAuthFilterPanel() {
       const panel = document.getElementById('auth-filter-panel');
-      panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-      if (panel.style.display === 'block') renderAuthFilterConditions();
+      if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+      } else {
+        panel.style.display = 'block';
+        renderAuthFilterConditions();
+      }
     }
     function renderAuthFilterConditions() {
       const container = document.getElementById('auth-filter-conditions');
