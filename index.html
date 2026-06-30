@@ -62,10 +62,12 @@
     .dark .nav-btn:hover { background-color: #1e293b; }
     .nav-btn.active { background-color: #091747; color: white; }
     .nav-btn.active:hover { background-color: #091747; }
-    /* Webhook headers no horizontal scroll */
-    .webhook-header-row { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; }
+    /* sidebar tree */
+    .table-tree-item { padding-left: 1.5rem; font-size: 0.9rem; }
+    .table-tree-toggle { cursor: pointer; user-select: none; }
+    /* webhook headers */
+    .webhook-header-row { display: flex; gap: 4px; align-items: center; }
     .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
-    /* ensure the headers container doesn't overflow */
     #webhook-headers { overflow-x: hidden; max-width: 100%; }
   </style>
 </head>
@@ -107,7 +109,8 @@
               </svg>
             </button>
           </div>
-          <ul id="table-list" class="space-y-1"></ul>
+          <input type="text" id="table-search" placeholder="Search tables..." class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" oninput="filterTableList()" />
+          <div id="table-list" class="space-y-1 max-h-[70vh] overflow-y-auto"></div>
         </div>
       </div>
       <div id="auth-sidebar" class="hidden p-4">
@@ -159,7 +162,7 @@
         <!-- Database View Content -->
         <div id="database-table-area">
           <div class="flex items-center justify-between mb-4">
-            <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" onkeyup="applySearch()" />
+            <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" oninput="applySearch()" />
             <div class="relative">
               <button onclick="toggleFilterPanel()" class="w-10 h-10 rounded-full bg-[#091747] text-white flex items-center justify-center shadow-md hover:bg-[#324380] transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -172,7 +175,7 @@
                 <button onclick="addFilterCondition()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add filter</button>
                 <div class="flex gap-2 mt-3">
                   <button onclick="applyFilters()" class="bg-[#091747] text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Apply</button>
-                  <button onclick="clearFilters()" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Clear</button>
+                  <button onclick="clearAllFilters()" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Clear</button>
                 </div>
               </div>
             </div>
@@ -217,7 +220,7 @@
           </div>
         </div>
 
-        <!-- Authentication Table Area (hidden by default) -->
+        <!-- Authentication Table Area -->
         <div id="auth-table-area" class="hidden">
           <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden mb-6">
             <table class="w-full" id="users-table">
@@ -303,7 +306,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (redesigned condition builder) -->
+  <!-- Privacy Modal -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -368,7 +371,7 @@
     </div>
   </div>
 
-  <!-- API Docs Modal (for database tables) -->
+  <!-- API Docs Modal (database tables) -->
   <div id="api-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
@@ -479,18 +482,21 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Privacy rules: { column, operator, reference (selected third dropdown value), values (comma-separated if reference is a table column), columns (perms) }
+    // Privacy rules: { column, operator, reference (dropdown value), values (comma string), columns (perms) }
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
     let rowsPerPage = 10;
     let totalRows = 0;
+    // activeFilters now includes a special entry for search (with id 'search')
     let activeFilters = [];
     let webhookHeaders = [];
     let selectedRows = new Set();
     let anonKeyValue = '...';
     let adminKeyValue = '...';
     let webhookEditingId = null;
+    // table tree expanded state
+    let expandedTables = {};
 
     // ======= DARK MODE =======
     function toggleDarkMode() {
@@ -529,11 +535,10 @@
       await loadAllTables();
       connectWebSocket();
       switchView('database');
-      // Auto-select table
+      // auto-select first table if none selected, but skip 'users'
       if (selectedTable && allTables.some(t => t.name === selectedTable)) {
         selectTable(selectedTable);
       } else if (allTables.length > 0) {
-        // select first table (skip internal tables like 'users' if you want, but we'll keep it)
         const first = allTables[0].name;
         selectedTable = first;
         localStorage.setItem('selectedTable', selectedTable);
@@ -549,14 +554,9 @@
     async function signUp() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) {
-        showAuthMessage('Please fill in both fields.');
-        return;
-      }
+      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
-        const res = await fetch(`${API_BASE}/api/register`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
-        });
+        const res = await fetch(`${API_BASE}/api/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const data = await res.json();
         if (res.ok) {
           token = data.token;
@@ -566,22 +566,15 @@
         } else {
           showAuthMessage(data.error || 'Registration failed.');
         }
-      } catch (err) {
-        showAuthMessage('Network error.');
-      }
+      } catch (err) { showAuthMessage('Network error.'); }
     }
 
     async function signIn() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) {
-        showAuthMessage('Please fill in both fields.');
-        return;
-      }
+      if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
-        const res = await fetch(`${API_BASE}/api/login`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
-        });
+        const res = await fetch(`${API_BASE}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const data = await res.json();
         if (res.ok) {
           token = data.token;
@@ -591,9 +584,7 @@
         } else {
           showAuthMessage(data.error || 'Invalid credentials.');
         }
-      } catch (err) {
-        showAuthMessage('Network error.');
-      }
+      } catch (err) { showAuthMessage('Network error.'); }
     }
 
     function signOut() {
@@ -605,7 +596,7 @@
       showAuth();
     }
 
-    // User menu dropdown
+    // User menu
     document.addEventListener('click', function(e) {
       const menu = document.getElementById('user-menu-dropdown');
       const btn = document.getElementById('user-menu-button');
@@ -636,7 +627,6 @@
         authActions.classList.add('hidden');
         navDb.classList.add('active');
         navAuth.classList.remove('active');
-        // Do not reset selectedTable
         loadAllTables();
       } else if (view === 'auth') {
         databaseSidebar.classList.add('hidden');
@@ -671,10 +661,8 @@
     async function deleteUser(id) {
       if (!confirm('Delete this user?')) return;
       const res = await fetch(`${API_BASE}/api/data/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        loadUsersTable();
-        showToast('User deleted');
-      } else showToast('Failed', true);
+      if (res.ok) { loadUsersTable(); showToast('User deleted'); }
+      else showToast('Failed', true);
     }
 
     function openAddUserModal() {
@@ -688,9 +676,7 @@
       const password = document.getElementById('new-user-password').value;
       if (!email || !password) return showToast('Email and password required', true);
       const res = await fetch(`${API_BASE}/api/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password })
       });
       if (res.ok) {
         closeModal('add-user-modal');
@@ -702,77 +688,89 @@
       }
     }
 
-    // ======= TABLE LIST WITH DRAG HANDLE =======
+    // ======= TABLE LIST WITH TREE & SEARCH =======
     async function loadAllTables() {
       if (!token) return;
       const res = await fetch(`${API_BASE}/api/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) { signOut(); return; }
       allTables = await res.json();
-      renderTableList();
+      renderTableTree();
     }
 
-    function renderTableList() {
-      const list = document.getElementById('table-list');
-      list.innerHTML = allTables.map(t => `
-        <li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition drag-item ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" 
-            data-table="${t.name}">
-          <span class="drag-handle mr-2" draggable="true" 
-                ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">
-            ⠿
-          </span>
-          <span class="flex-1 truncate ${selectedTable === t.name ? 'text-[#101213] dark:text-white font-bold' : 'text-[#101213] dark:text-white'}" onclick="event.stopPropagation(); selectTable('${t.name}')">📄 ${t.name}</span>
-          <div class="hidden group-hover:flex items-center space-x-1">
-            <button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button>
-            <button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button>
-            <button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm" title="Delete">🗑️</button>
+    function renderTableTree() {
+      const searchTerm = document.getElementById('table-search')?.value.toLowerCase() || '';
+      const container = document.getElementById('table-list');
+      container.innerHTML = '';
+      allTables.forEach(t => {
+        if (searchTerm && !t.name.toLowerCase().includes(searchTerm)) return;
+        const isExpanded = expandedTables[t.name] || false;
+        const item = document.createElement('div');
+        item.innerHTML = `
+          <div class="flex items-center p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer">
+            <span class="drag-handle mr-1" draggable="true" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragend="handleDragEnd(event)">⠿</span>
+            <span class="table-tree-toggle mr-1" onclick="toggleTableExpansion('${t.name}')">${isExpanded ? '▾' : '▸'}</span>
+            <span class="flex-1 truncate ${selectedTable===t.name ? 'font-bold' : ''}" onclick="selectTable('${t.name}')">📄 ${t.name}</span>
+            <div class="flex items-center space-x-1">
+              <button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button>
+              <button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button>
+              <button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm" title="Delete">🗑️</button>
+            </div>
           </div>
-        </li>
-      `).join('');
+        `;
+        container.appendChild(item);
+        if (isExpanded) {
+          const colsDiv = document.createElement('div');
+          colsDiv.className = 'ml-8 space-y-1';
+          t.columns.forEach(col => {
+            const colEl = document.createElement('div');
+            colEl.className = 'text-xs text-gray-500 dark:text-gray-400';
+            colEl.textContent = `└ ${col.name}`;
+            colsDiv.appendChild(colEl);
+          });
+          container.appendChild(colsDiv);
+        }
+      });
     }
 
+    function toggleTableExpansion(name) {
+      expandedTables[name] = !expandedTables[name];
+      renderTableTree();
+    }
+
+    function filterTableList() {
+      renderTableTree();
+    }
+
+    // drag & drop handlers (unchanged)
     let dragSrcTable = null;
 
     function handleDragStart(e) {
-      dragSrcTable = e.target.closest('.drag-item').dataset.table;
+      dragSrcTable = e.target.closest('.drag-item')?.dataset.table;
       e.dataTransfer.effectAllowed = 'move';
-      e.target.closest('.drag-item').classList.add('dragging');
-      e.stopPropagation();
+      e.target.closest('.drag-item')?.classList.add('dragging');
     }
-
-    function handleDragOver(e) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    }
-
+    function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
     function handleDrop(e) {
       e.preventDefault();
       const targetItem = e.target.closest('.drag-item');
       if (!targetItem || !dragSrcTable) return;
       const targetTable = targetItem.dataset.table;
       if (dragSrcTable === targetTable) return;
-
       const srcIdx = allTables.findIndex(t => t.name === dragSrcTable);
       const destIdx = allTables.findIndex(t => t.name === targetTable);
       const [moved] = allTables.splice(srcIdx, 1);
       allTables.splice(destIdx, 0, moved);
-
-      renderTableList();
+      renderTableTree();
       saveTableOrder();
       dragSrcTable = null;
     }
-
     function handleDragEnd(e) {
       e.target.closest('.drag-item')?.classList.remove('dragging');
       dragSrcTable = null;
     }
-
     async function saveTableOrder() {
       const order = allTables.map(t => t.name);
-      await fetch(`${API_BASE}/api/tables/order`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ order })
-      });
+      await fetch(`${API_BASE}/api/tables/order`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ order }) });
     }
 
     function selectTable(name) {
@@ -788,7 +786,7 @@
       currentColumns = meta ? meta.columns : [];
       currentPage = 1;
       fetchAndRenderRows();
-      renderTableList();
+      renderTableTree();
     }
 
     async function fetchAndRenderRows() {
@@ -799,7 +797,9 @@
       if (sortColumn) {
         url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`;
       }
-      activeFilters.forEach((f, i) => {
+      // include active filters
+      const nonSearchFilters = activeFilters.filter(f => f.id !== 'search');
+      nonSearchFilters.forEach((f, i) => {
         url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
       });
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -807,7 +807,7 @@
       currentRows = await res.json();
 
       let countUrl = `${API_BASE}/api/data/${selectedTable}?count=true`;
-      activeFilters.forEach((f, i) => {
+      nonSearchFilters.forEach((f, i) => {
         countUrl += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`;
       });
       const countRes = await fetch(countUrl, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -941,7 +941,7 @@
           </tr>`).join('');
     }
 
-    // ======= INLINE EDIT POPUP =======
+    // Inline edit popup (unchanged)
     function showEditPopup(cell, rowId, colName) {
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
       const oldValue = cell.textContent;
@@ -962,13 +962,11 @@
       }
       const popup = document.createElement('div');
       popup.className = 'edit-popup';
-      popup.innerHTML = `
-        ${inputHtml}
+      popup.innerHTML = `${inputHtml}
         <div class="flex gap-2 mt-2">
           <button onclick="saveEditFromPopup('${rowId}', '${colName}', document.getElementById('edit-popup-input').value, this)" class="text-green-600 hover:text-green-800 text-sm">✅ Save</button>
           <button onclick="this.closest('.edit-popup').remove()" class="text-red-500 hover:text-red-700 text-sm">❌ Cancel</button>
-        </div>
-      `;
+        </div>`;
       cell.appendChild(popup);
       popup.style.display = 'block';
       const input = popup.querySelector('input, select');
@@ -989,9 +987,7 @@
 
     async function saveEditFromPopup(rowId, colName, newValue, popupElement) {
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}/${rowId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ [colName]: newValue })
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ [colName]: newValue })
       });
       if (res.ok) {
         const updated = await res.json();
@@ -1006,15 +1002,12 @@
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
     }
 
-    // ======= ACTIONS DROPDOWN =======
     function toggleActionsDropdown(e, rowId) {
       e.stopPropagation();
       const existing = document.querySelector('.action-dropdown.show');
       if (existing) existing.classList.remove('show');
-
       const dropdown = document.getElementById(`actions-${rowId}`);
       if (!dropdown) return;
-
       const btn = e.currentTarget;
       const rect = btn.getBoundingClientRect();
       dropdown.style.position = 'fixed';
@@ -1022,7 +1015,6 @@
       dropdown.style.top = rect.bottom + 'px';
       dropdown.style.zIndex = '100';
       document.body.appendChild(dropdown);
-
       dropdown.classList.toggle('show');
       if (!dropdown.classList.contains('show')) {
         dropdown.remove();
@@ -1044,9 +1036,7 @@
       const body = {};
       currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body)
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body)
       });
       if (res.ok) { fetchAndRenderRows(); showToast('Row duplicated'); }
       else { const err = await res.json(); showToast(err.error || 'Duplicate failed', true); }
@@ -1054,10 +1044,7 @@
 
     async function deleteRow(id) {
       if (!confirm('Delete this row permanently?')) return;
-      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await fetch(`${API_BASE}/api/data/${selectedTable}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { fetchAndRenderRows(); showToast('Row deleted'); }
       else showToast('Delete failed', true);
     }
@@ -1069,13 +1056,13 @@
       fetchAndRenderRows();
     }
 
-    // ======= SEARCH & FILTER =======
+    // ======= SEARCH & FILTER (now cooperative) =======
     function applySearch() {
       const query = document.getElementById('search-input').value.trim();
+      // remove existing search filter
+      activeFilters = activeFilters.filter(f => f.id !== 'search');
       if (query && currentColumns.length > 0) {
-        activeFilters = [{ column: currentColumns[0]?.name || 'title', operator: 'contains', value: query }];
-      } else {
-        activeFilters = [];
+        activeFilters.push({ id: 'search', column: currentColumns[0]?.name || 'title', operator: 'contains', value: query });
       }
       currentPage = 1;
       fetchAndRenderRows();
@@ -1093,7 +1080,8 @@
 
     function renderFilterConditions() {
       const container = document.getElementById('filter-conditions');
-      container.innerHTML = activeFilters.map((f, i) => {
+      const explicitFilters = activeFilters.filter(f => f.id !== 'search');
+      container.innerHTML = explicitFilters.map((f, i) => {
         const colMeta = currentColumns.find(c => c.name === f.column);
         const type = colMeta ? colMeta.type : 'string';
         const allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string;
@@ -1110,9 +1098,9 @@
       }).join('');
     }
 
-    function updateFilterColumn(idx, col) { activeFilters[idx].column = col; renderFilterConditions(); }
-    function updateFilterOp(idx, op) { activeFilters[idx].operator = op; }
-    function updateFilterValue(idx, val) { activeFilters[idx].value = val; }
+    function updateFilterColumn(idx, col) { activeFilters.filter(f => f.id !== 'search')[idx].column = col; renderFilterConditions(); }
+    function updateFilterOp(idx, op) { activeFilters.filter(f => f.id !== 'search')[idx].operator = op; }
+    function updateFilterValue(idx, val) { activeFilters.filter(f => f.id !== 'search')[idx].value = val; }
 
     function addFilterCondition() {
       const firstCol = currentColumns[0]?.name || 'id';
@@ -1120,7 +1108,11 @@
       renderFilterConditions();
     }
 
-    function removeFilterCondition(index) { activeFilters.splice(index, 1); renderFilterConditions(); }
+    function removeFilterCondition(index) {
+      const explicit = activeFilters.filter(f => f.id !== 'search');
+      activeFilters = activeFilters.filter(f => f.id === 'search').concat(explicit.filter((_, i) => i !== index));
+      renderFilterConditions();
+    }
 
     function applyFilters() {
       currentPage = 1;
@@ -1128,7 +1120,7 @@
       document.getElementById('filter-panel').style.display = 'none';
     }
 
-    function clearFilters() {
+    function clearAllFilters() {
       activeFilters = [];
       document.getElementById('search-input').value = '';
       renderFilterConditions();
@@ -1174,9 +1166,7 @@
         return;
       }
       const res = await fetch(`${API_BASE}/api/tables`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ name, columns: cols })
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ name, columns: cols })
       });
       const data = await res.json();
       if (res.ok) {
@@ -1231,9 +1221,7 @@
         return;
       }
       const res = await fetch(`${API_BASE}/api/tables/${tableToRename}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ newName })
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ newName })
       });
       if (res.ok) {
         closeModal('rename-table-modal');
@@ -1253,9 +1241,7 @@
       if (!table) return;
       document.getElementById('edit-table-name').textContent = table.name;
       const container = document.getElementById('edit-columns');
-      // Filter columns: for users table, show only email and any custom columns (hide password)
-      let colsToEdit = table.columns;
-      // Build html with remove button disabled for 'email' on users table
+      const colsToEdit = table.columns;
       container.innerHTML = colsToEdit.map(c => `
         <div class="flex items-center gap-2">
           <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
@@ -1293,9 +1279,7 @@
       }
       if (cols.length === 0) return showToast('At least one column required', true);
       const res = await fetch(`${API_BASE}/api/tables/${name}/schema`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ columns: cols })
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ columns: cols })
       });
       if (res.ok) {
         closeModal('edit-table-modal');
@@ -1343,19 +1327,15 @@
         if (el) body[c.name] = el.value;
       });
       const res = await fetch(`${API_BASE}/api/data/${selectedTable}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(body)
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body)
       });
       if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); }
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
     // ======= PRIVACY (redesigned condition builder) =======
-    // Auth columns (base + custom)
     function getAuthColumns() {
       const base = ['Auth.ID', 'Auth.Email'];
-      // Add any custom columns from users table
       const usersMeta = allTables.find(t => t.name === 'users');
       if (usersMeta) {
         usersMeta.columns.forEach(c => {
@@ -1374,7 +1354,6 @@
       const priv = table?.privacy || {};
       privacyRules = [];
       const ops = ['read', 'write', 'update', 'delete'];
-      // Parse existing conditions into new rule structure
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
@@ -1382,19 +1361,11 @@
             const col = parts[0] || '';
             const opVal = parts[1] || 'eq';
             const val = parts.slice(2).join(' ') || '';
-            // Determine reference: if val === '@user_id' then reference is Auth.ID, else could be other
             let reference = '';
             let values = '';
-            if (val === '@user_id') {
-              reference = 'Auth.ID'; // default, could be improved but fine
-            } else if (val.includes('@user_id')) {
-              reference = val.replace(/@user_id/g, '').trim() || 'Auth.ID';
-            } else {
-              // try to see if value matches a table column (e.g., something like 'table.col'), but we'll treat as static values
-              reference = 'Custom'; // will need to set manually later, but we'll keep as static
-              values = val;
-            }
-            // Create rule if not duplicate
+            if (val === '@user_id') { reference = 'Auth.ID'; }
+            else if (val === '@user_email') { reference = 'Auth.Email'; }
+            else { reference = 'Static Value'; values = val; }
             const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === reference && r.values === values);
             if (!existing) {
               privacyRules.push({
@@ -1408,7 +1379,6 @@
           });
         }
       });
-      // Initialize column permissions from table settings
       const colPerms = table?.column_permissions || {};
       privacyRules.forEach(rule => {
         rule.columns = {
@@ -1441,18 +1411,16 @@
       const allCols = ['id', ...currentColumns.map(c => c.name)];
       const currentTableName = selectedTable;
 
-      // Build reference options
       const authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join('');
-      // Database tables options: all tables and their columns (including current table)
       const dbOpts = allTables.map(t => {
         return t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
       }).join('');
+      const staticOpt = '<option value="Static Value">Static Value</option>';
 
-      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`;
+      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>${staticOpt}`;
 
       container.innerHTML = privacyRules.map((rule, idx) => {
-        // Determine if reference is a table column (contains '.') => then show values input
-        const showValues = rule.reference && rule.reference.includes('.') && !rule.reference.startsWith('Auth.');
+        const showValues = true; // always show now
         const allRead = allCols.every(c => rule.columns.read.includes(c));
         const allWrite = allCols.every(c => rule.columns.write.includes(c));
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
@@ -1470,10 +1438,11 @@
             <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">
               ${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}
             </select>
-            ${showValues ? `<input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" 
+            <input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" 
                    value="${rule.values || ''}" 
-                   placeholder="Values (comma separated)" 
-                   onchange="updatePrivacyValues(${idx}, this.value)" />` : ''}
+                   placeholder="Specific Values (optional)" 
+                   onchange="updatePrivacyValues(${idx}, this.value)" />
+            <small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>
             <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button>
           </div>
           <table class="mini-perms-table">
@@ -1533,14 +1502,7 @@
 
     function updatePrivacyColumn(idx, val) { privacyRules[idx].column = val; }
     function updatePrivacyOperator(idx, op) { privacyRules[idx].operator = op; }
-    function updatePrivacyReference(idx, ref) {
-      privacyRules[idx].reference = ref;
-      // Clear values if switched to auth field
-      if (ref && ref.startsWith('Auth.')) {
-        privacyRules[idx].values = '';
-      }
-      renderPrivacyCards();
-    }
+    function updatePrivacyReference(idx, ref) { privacyRules[idx].reference = ref; renderPrivacyCards(); }
     function updatePrivacyValues(idx, val) { privacyRules[idx].values = val; }
 
     function deletePrivacyRule(idx) { privacyRules.splice(idx,1); renderPrivacyCards(); }
@@ -1550,14 +1512,12 @@
       ['read','write','update','delete'].forEach(op => {
         const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => {
           let valuePart;
-          if (r.reference.startsWith('Auth.')) {
-            // map Auth field to @user_id (if it's ID) or maybe other fields; for simplicity assume @user_id for Auth.ID
-            valuePart = '@user_id';
-          } else {
-            // use static values from input
-            valuePart = r.values || '';
-            if (!valuePart) return ''; // skip if no values
-          }
+          if (r.reference === 'Auth.ID') valuePart = '@user_id';
+          else if (r.reference === 'Auth.Email') valuePart = '@user_email';
+          else if (r.reference === 'Static Value') valuePart = r.values || '';
+          else if (r.reference.includes('.')) valuePart = r.values || '';
+          else valuePart = r.values || '';
+          if (!valuePart) return '';
           return `${r.column} ${r.operator} ${valuePart}`;
         }).filter(Boolean);
         payload[op] = conditions.join(' AND ');
@@ -1575,8 +1535,7 @@
         delete: Array.from(globalCols.delete)
       };
       await fetch(`${API_BASE}/api/tables/${selectedTable}/privacy`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload)
       });
       closeModal('privacy-modal');
       loadAllTables();
@@ -1674,14 +1633,13 @@
       });
     }
 
-    // ======= AUTH API MODAL =======
     function openAuthApiModal() {
       const base = API_BASE;
       const methods = [
         { method: 'POST', url: '/api/register', desc: 'Register a new user' },
         { method: 'POST', url: '/api/login', desc: 'Login and receive token' },
-        { method: 'GET', url: '/api/data/users', desc: 'List all users (admin only)' },
-        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user (admin)' },
+        { method: 'GET', url: '/api/data/users', desc: 'List all users' },
+        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user' },
         { method: 'PUT', url: '/api/data/users/:id', desc: 'Update a user' },
         { method: 'DELETE', url: '/api/data/users/:id', desc: 'Delete a user' }
       ];
@@ -1767,7 +1725,7 @@
         .catch(() => showToast('Failed to fetch keys', true));
     }
 
-    // ======= WEBHOOKS =======
+    // ======= WEBHOOKS (unchanged) =======
     async function openWebhooksModal() {
       if (!selectedTable) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
@@ -1865,12 +1823,8 @@
     async function deleteWebhook(id) {
       if (!confirm('Delete this webhook?')) return;
       const res = await fetch(`${API_BASE}/api/webhooks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        loadWebhooksTable();
-        showToast('Webhook deleted');
-      } else {
-        showToast('Failed', true);
-      }
+      if (res.ok) { loadWebhooksTable(); showToast('Webhook deleted'); }
+      else showToast('Failed', true);
     }
 
     // ======= LOGS =======
@@ -1924,12 +1878,10 @@
     }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
-    // Close modals on overlay click
     window.addEventListener('click', e => {
       if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('active');
     });
 
-    // Init
     window.addEventListener('load', () => {
       if (token) showApp(); else showAuth();
     });
