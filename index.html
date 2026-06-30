@@ -62,6 +62,11 @@
     .dark .nav-btn:hover { background-color: #1e293b; }
     .nav-btn.active { background-color: #091747; color: white; }
     .nav-btn.active:hover { background-color: #091747; }
+    /* Webhook headers no horizontal scroll */
+    .webhook-header-row { display: flex; flex-wrap: nowrap; gap: 4px; align-items: center; }
+    .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
+    /* ensure the headers container doesn't overflow */
+    #webhook-headers { overflow-x: hidden; max-width: 100%; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -126,6 +131,8 @@
           </span>
           <span id="auth-actions" class="hidden">
             <button onclick="openAddUserModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Add User</button>
+            <button onclick="openEditTableModal('users')" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Edit Schema</button>
+            <button onclick="openAuthApiModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">API</button>
           </span>
           <div class="relative">
             <button onclick="toggleLogsModal()" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition text-xl">🔔</button>
@@ -186,7 +193,7 @@
               <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
             </table>
           </div>
-          <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">Select a table from the left to view its data.</div>
+          <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">No tables yet. Create one to get started.</div>
 
           <div id="pagination" class="flex items-center justify-between mt-4 hidden">
             <div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">
@@ -223,24 +230,6 @@
               </thead>
               <tbody id="users-table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
             </table>
-          </div>
-          <!-- Auth API section -->
-          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm p-6 border-2 border-[#324380]">
-            <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Auth API</h3>
-            <div class="space-y-4 text-sm">
-              <div>
-                <p class="font-medium">POST /api/register</p>
-                <p class="text-[#57636C] dark:text-[#95A1AC]">Body: { email, password }</p>
-              </div>
-              <div>
-                <p class="font-medium">POST /api/login</p>
-                <p class="text-[#57636C] dark:text-[#95A1AC]">Body: { email, password }</p>
-              </div>
-              <div>
-                <p class="font-medium">DELETE /api/data/users/:id</p>
-                <p class="text-[#57636C] dark:text-[#95A1AC]">Delete a user by ID</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -314,7 +303,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (redesigned) -->
+  <!-- Privacy Modal (redesigned condition builder) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -379,7 +368,7 @@
     </div>
   </div>
 
-  <!-- API Docs Modal -->
+  <!-- API Docs Modal (for database tables) -->
   <div id="api-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
@@ -390,6 +379,19 @@
         </div>
       </div>
       <div id="api-content" class="space-y-6"></div>
+    </div>
+  </div>
+
+  <!-- Auth API Modal -->
+  <div id="auth-api-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Auth API Configuration</h3>
+        <div class="flex items-center gap-2">
+          <button onclick="closeModal('auth-api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+        </div>
+      </div>
+      <div id="auth-api-content" class="space-y-6"></div>
     </div>
   </div>
 
@@ -477,7 +479,7 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
-    // Privacy rules: { column, operator, valueType: 'specific'|'@user_id', value: '' }
+    // Privacy rules: { column, operator, reference (selected third dropdown value), values (comma-separated if reference is a table column), columns (perms) }
     let privacyRules = [];
     let showRealToken = false;
     let currentPage = 1;
@@ -527,7 +529,16 @@
       await loadAllTables();
       connectWebSocket();
       switchView('database');
-      if (selectedTable) selectTable(selectedTable);
+      // Auto-select table
+      if (selectedTable && allTables.some(t => t.name === selectedTable)) {
+        selectTable(selectedTable);
+      } else if (allTables.length > 0) {
+        // select first table (skip internal tables like 'users' if you want, but we'll keep it)
+        const first = allTables[0].name;
+        selectedTable = first;
+        localStorage.setItem('selectedTable', selectedTable);
+        selectTable(selectedTable);
+      }
     }
 
     function getUserEmail() {
@@ -625,7 +636,7 @@
         authActions.classList.add('hidden');
         navDb.classList.add('active');
         navAuth.classList.remove('active');
-        selectedTable = null;
+        // Do not reset selectedTable
         loadAllTables();
       } else if (view === 'auth') {
         databaseSidebar.classList.add('hidden');
@@ -1242,14 +1253,17 @@
       if (!table) return;
       document.getElementById('edit-table-name').textContent = table.name;
       const container = document.getElementById('edit-columns');
-      container.innerHTML = table.columns.map(c => `
+      // Filter columns: for users table, show only email and any custom columns (hide password)
+      let colsToEdit = table.columns;
+      // Build html with remove button disabled for 'email' on users table
+      container.innerHTML = colsToEdit.map(c => `
         <div class="flex items-center gap-2">
           <input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
           <select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">
             ${COLUMN_TYPES.map(t => `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}
           </select>
           <input value="${c.default || ''}" placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-          <button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>
+          ${(table.name === 'users' && c.name === 'email') ? '<span class="text-gray-400 text-sm">required</span>' : `<button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>`}
         </div>
       `).join('');
       document.getElementById('edit-table-modal').classList.add('active');
@@ -1337,7 +1351,22 @@
       else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
     }
 
-    // ======= PRIVACY (redesigned with three dropdowns + optional input) =======
+    // ======= PRIVACY (redesigned condition builder) =======
+    // Auth columns (base + custom)
+    function getAuthColumns() {
+      const base = ['Auth.ID', 'Auth.Email'];
+      // Add any custom columns from users table
+      const usersMeta = allTables.find(t => t.name === 'users');
+      if (usersMeta) {
+        usersMeta.columns.forEach(c => {
+          if (c.name !== 'email' && c.name !== 'id' && c.name !== 'password') {
+            base.push(`Auth.${c.name}`);
+          }
+        });
+      }
+      return base;
+    }
+
     function openPrivacyModal() {
       if (!selectedTable) return;
       document.getElementById('privacy-table-name').textContent = selectedTable;
@@ -1345,6 +1374,7 @@
       const priv = table?.privacy || {};
       privacyRules = [];
       const ops = ['read', 'write', 'update', 'delete'];
+      // Parse existing conditions into new rule structure
       ops.forEach(op => {
         if (priv[op]) {
           priv[op].split(' AND ').map(s => s.trim()).forEach(condition => {
@@ -1352,13 +1382,26 @@
             const col = parts[0] || '';
             const opVal = parts[1] || 'eq';
             const val = parts.slice(2).join(' ') || '';
-            const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.value === val);
+            // Determine reference: if val === '@user_id' then reference is Auth.ID, else could be other
+            let reference = '';
+            let values = '';
+            if (val === '@user_id') {
+              reference = 'Auth.ID'; // default, could be improved but fine
+            } else if (val.includes('@user_id')) {
+              reference = val.replace(/@user_id/g, '').trim() || 'Auth.ID';
+            } else {
+              // try to see if value matches a table column (e.g., something like 'table.col'), but we'll treat as static values
+              reference = 'Custom'; // will need to set manually later, but we'll keep as static
+              values = val;
+            }
+            // Create rule if not duplicate
+            const existing = privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === reference && r.values === values);
             if (!existing) {
               privacyRules.push({
                 column: col,
                 operator: opVal,
-                valueType: val === '@user_id' ? '@user_id' : 'specific',
-                value: val === '@user_id' ? '' : val,
+                reference: reference,
+                values: values,
                 columns: { read: [], write: [], update: [], delete: [] }
               });
             }
@@ -1379,8 +1422,8 @@
         privacyRules.push({
           column: currentColumns[0]?.name || 'id',
           operator: 'eq',
-          valueType: '@user_id',
-          value: '',
+          reference: 'Auth.ID',
+          values: '',
           columns: {
             read: [...currentColumns.map(c=>c.name), 'id'],
             write: [...currentColumns.map(c=>c.name), 'id'],
@@ -1396,7 +1439,20 @@
     function renderPrivacyCards() {
       const container = document.getElementById('privacy-rules-container');
       const allCols = ['id', ...currentColumns.map(c => c.name)];
+      const currentTableName = selectedTable;
+
+      // Build reference options
+      const authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join('');
+      // Database tables options: all tables and their columns (including current table)
+      const dbOpts = allTables.map(t => {
+        return t.columns.map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('');
+      }).join('');
+
+      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`;
+
       container.innerHTML = privacyRules.map((rule, idx) => {
+        // Determine if reference is a table column (contains '.') => then show values input
+        const showValues = rule.reference && rule.reference.includes('.') && !rule.reference.startsWith('Auth.');
         const allRead = allCols.every(c => rule.columns.read.includes(c));
         const allWrite = allCols.every(c => rule.columns.write.includes(c));
         const allUpdate = allCols.every(c => rule.columns.update.includes(c));
@@ -1404,23 +1460,21 @@
 
         return `
         <div class="privacy-rule-card">
-          <div class="flex items-center gap-2 mb-3">
-            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1" onchange="updatePrivacyColumn(${idx}, this)" style="border-color:#324380;">
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyColumn(${idx}, this.value)">
               ${allCols.map(c => `<option value="${c}" ${rule.column === c ? 'selected' : ''}>${c}</option>`).join('')}
             </select>
-            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyOperator(${idx}, this.value)">
-              ${(TYPE_OPERATORS[currentColumns.find(c => rule.column === c)?.type] || OPERATORS).map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOperator(${idx}, this.value)">
+              ${OPERATORS.map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}
             </select>
-            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" onchange="updatePrivacyValueType(${idx}, this.value)">
-              <option value="@user_id" ${rule.valueType === '@user_id' ? 'selected' : ''}>@user_id</option>
-              <option value="specific" ${rule.valueType === 'specific' ? 'selected' : ''}>Specific value</option>
+            <select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">
+              ${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}
             </select>
-            ${rule.valueType === 'specific' ? `
-            <input class="border p-1 rounded text-sm w-32 dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" 
-                   value="${rule.value || ''}" 
-                   placeholder="Value" 
-                   onchange="updatePrivacyValue(${idx}, this.value)" />` : ''}
-            <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600">✕</button>
+            ${showValues ? `<input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" 
+                   value="${rule.values || ''}" 
+                   placeholder="Values (comma separated)" 
+                   onchange="updatePrivacyValues(${idx}, this.value)" />` : ''}
+            <button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button>
           </div>
           <table class="mini-perms-table">
             <thead>
@@ -1459,8 +1513,8 @@
       privacyRules.push({
         column: defaultCol,
         operator: 'eq',
-        valueType: '@user_id',
-        value: '',
+        reference: 'Auth.ID',
+        values: '',
         columns: {
           read: [...currentColumns.map(c=>c.name), 'id'],
           write: [...currentColumns.map(c=>c.name), 'id'],
@@ -1477,14 +1531,17 @@
       else { privacyRules[idx].columns[op] = arr.filter(c => c !== col); }
     }
 
-    function updatePrivacyColumn(idx, selectEl) { privacyRules[idx].column = selectEl.value; }
+    function updatePrivacyColumn(idx, val) { privacyRules[idx].column = val; }
     function updatePrivacyOperator(idx, op) { privacyRules[idx].operator = op; }
-    function updatePrivacyValueType(idx, type) {
-      privacyRules[idx].valueType = type;
-      if (type === '@user_id') privacyRules[idx].value = '';
+    function updatePrivacyReference(idx, ref) {
+      privacyRules[idx].reference = ref;
+      // Clear values if switched to auth field
+      if (ref && ref.startsWith('Auth.')) {
+        privacyRules[idx].values = '';
+      }
       renderPrivacyCards();
     }
-    function updatePrivacyValue(idx, value) { privacyRules[idx].value = value; }
+    function updatePrivacyValues(idx, val) { privacyRules[idx].values = val; }
 
     function deletePrivacyRule(idx) { privacyRules.splice(idx,1); renderPrivacyCards(); }
 
@@ -1492,9 +1549,16 @@
       const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
       ['read','write','update','delete'].forEach(op => {
         const conditions = privacyRules.filter(r => r.columns[op].length > 0).map(r => {
-          const val = r.valueType === '@user_id' ? '@user_id' : (r.value || '');
-          if (r.valueType === 'specific' && !val) return ''; // skip if no value typed
-          return `${r.column} ${r.operator} ${val}`;
+          let valuePart;
+          if (r.reference.startsWith('Auth.')) {
+            // map Auth field to @user_id (if it's ID) or maybe other fields; for simplicity assume @user_id for Auth.ID
+            valuePart = '@user_id';
+          } else {
+            // use static values from input
+            valuePart = r.values || '';
+            if (!valuePart) return ''; // skip if no values
+          }
+          return `${r.column} ${r.operator} ${valuePart}`;
         }).filter(Boolean);
         payload[op] = conditions.join(' AND ');
       });
@@ -1519,7 +1583,7 @@
       showToast('Privacy rules saved');
     }
 
-    // ======= API DOCS =======
+    // ======= API DOCS (database tables) =======
     async function toggleApiToken() {
       if (!anonKeyValue || anonKeyValue === '...') {
         try {
@@ -1610,14 +1674,100 @@
       });
     }
 
-    function copyText(text, btn) {
-      navigator.clipboard.writeText(text).then(() => {
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = '📋 Copy', 2000);
+    // ======= AUTH API MODAL =======
+    function openAuthApiModal() {
+      const base = API_BASE;
+      const methods = [
+        { method: 'POST', url: '/api/register', desc: 'Register a new user' },
+        { method: 'POST', url: '/api/login', desc: 'Login and receive token' },
+        { method: 'GET', url: '/api/data/users', desc: 'List all users (admin only)' },
+        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user (admin)' },
+        { method: 'PUT', url: '/api/data/users/:id', desc: 'Update a user' },
+        { method: 'DELETE', url: '/api/data/users/:id', desc: 'Delete a user' }
+      ];
+
+      const keyOptions = [];
+      if (anonKeyValue && anonKeyValue !== '...') keyOptions.push(`<option value="${anonKeyValue}">Anon key</option>`);
+      if (adminKeyValue && adminKeyValue !== '...') keyOptions.push(`<option value="${adminKeyValue}">Admin key</option>`);
+      const keySelector = keyOptions.length > 0
+        ? `<select id="auth-api-key-selector" onchange="updateAuthApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">
+            ${keyOptions.join('')}
+           </select>`
+        : '<span class="text-xs text-gray-500">Loading keys…</span>';
+
+      document.getElementById('auth-api-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>
+          ${keySelector}
+          <button onclick="fetchKeysAndUpdateAuth()" class="text-xs bg-[#091747] text-white border border-[#324380] px-2 py-1 rounded hover:bg-[#324380]">Refresh</button>
+        </div>
+        ${methods.map(m => {
+          const badge = m.method === 'GET' ? 'bg-green-100 text-green-800' : m.method === 'POST' ? 'bg-blue-100 text-blue-800' : m.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+          return `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div>
+            <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p>
+            <details class="mb-2">
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-curl-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+            <details>
+              <summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary>
+              <pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-node-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs bg-[#091747] text-white px-2 py-1 rounded hover:bg-[#324380]">📋 Copy</button></pre>
+            </details>
+          </div>`;
+        }).join('')}
+      `;
+      updateAuthApiSnippets();
+      document.getElementById('auth-api-modal').classList.add('active');
+    }
+
+    function updateAuthApiSnippets() {
+      const keyEl = document.getElementById('auth-api-key-selector');
+      const tokenDisplay = keyEl ? keyEl.value : 'YOUR_TOKEN';
+      const base = API_BASE;
+      const methods = [
+        { method: 'POST', url: '/api/register', desc: 'Register a new user' },
+        { method: 'POST', url: '/api/login', desc: 'Login and receive token' },
+        { method: 'GET', url: '/api/data/users', desc: 'List all users' },
+        { method: 'POST', url: '/api/data/users', desc: 'Insert a new user' },
+        { method: 'PUT', url: '/api/data/users/:id', desc: 'Update a user' },
+        { method: 'DELETE', url: '/api/data/users/:id', desc: 'Delete a user' }
+      ];
+      methods.forEach(m => {
+        const curlEl = document.getElementById(`auth-curl-${m.method}`);
+        const nodeEl = document.getElementById(`auth-node-${m.method}`);
+        if (!curlEl || !nodeEl) return;
+        if (m.method === 'GET') {
+          curlEl.textContent = `curl "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}"`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}' }\n});\nconst data = await res.json();`;
+        } else if (m.method === 'POST' && m.url === '/api/register') {
+          curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`;
+        } else if (m.method === 'POST' && m.url === '/api/login') {
+          curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`;
+        } else if (m.method === 'POST' && m.url.includes('/api/data/users')) {
+          curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"new@example.com","password":"pass"}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'new@example.com',password:'pass'})\n});\nconst data = await res.json();`;
+        } else {
+          curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  -H "Authorization: Bearer ${tokenDisplay}" \\\n  -H "Content-Type: application/json" \\\n  -d '{}'`;
+          nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'Authorization': 'Bearer ${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify({})\n});\nconst data = await res.json();`;
+        }
       });
     }
 
-    // ======= WEBOOKS =======
+    function fetchKeysAndUpdateAuth() {
+      fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          anonKeyValue = data.anonKey || '';
+          adminKeyValue = data.adminKey || '';
+          openAuthApiModal();
+        })
+        .catch(() => showToast('Failed to fetch keys', true));
+    }
+
+    // ======= WEBHOOKS =======
     async function openWebhooksModal() {
       if (!selectedTable) return;
       document.getElementById('webhooks-table-name').textContent = selectedTable;
@@ -1676,10 +1826,10 @@
     function renderWebhookHeaders() {
       const container = document.getElementById('webhook-headers');
       container.innerHTML = webhookHeaders.map((h, i) => `
-        <div class="flex gap-2">
-          <input placeholder="Key" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" value="${h.key}" onchange="webhookHeaders[${i}].key = this.value" />
-          <input placeholder="Value" class="flex-1 border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" value="${h.value}" onchange="webhookHeaders[${i}].value = this.value" />
-          <button onclick="webhookHeaders.splice(${i},1); renderWebhookHeaders()" class="text-red-400 hover:text-red-600">✕</button>
+        <div class="webhook-header-row">
+          <input placeholder="Key" class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="min-width:0; flex:1 1 auto;" value="${h.key}" onchange="webhookHeaders[${i}].key = this.value" />
+          <input placeholder="Value" class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" style="min-width:0; flex:1 1 auto;" value="${h.value}" onchange="webhookHeaders[${i}].value = this.value" />
+          <button onclick="webhookHeaders.splice(${i},1); renderWebhookHeaders()" class="text-red-400 hover:text-red-600 flex-shrink-0">✕</button>
         </div>
       `).join('');
     }
