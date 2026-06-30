@@ -49,7 +49,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ---------- Database init ----------
 async function initDb() {
   while (true) {
     try {
@@ -66,12 +65,26 @@ async function initDb() {
 
   const client = await pool.connect();
   try {
+    // Admins table (separate from users)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL
+      );
+    `);
+
+    // Users table (for application users only)
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL
       );
+    `);
+
+    // Internal tables
+    await client.query(`
       CREATE TABLE IF NOT EXISTS _tables (
         id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
@@ -86,32 +99,49 @@ async function initDb() {
       );
     `);
 
-    // Safe migrations
+    // Migrations
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS events TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS headers TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS name TEXT DEFAULT ''"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
     try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
-    try { await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'"); } catch (e) {}
 
-    // Make the very first user an admin if not already
-    await client.query("UPDATE users SET role = 'admin' WHERE id = 1 AND role = 'user'");
-
-    // Ensure users table metadata exists and includes password column
-    let userMeta = await client.query("SELECT columns FROM _tables WHERE name = 'users'");
-    if (userMeta.rowCount === 0) {
-      await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
-        VALUES ('users', '[{"name":"email","type":"string"},{"name":"password","type":"string"}]', '{}', '{}', 9999)`);
-    } else {
-      let cols = JSON.parse(userMeta.rows[0].columns);
-      const hasPassword = cols.some(c => c.name === 'password');
-      if (!hasPassword) {
-        cols.push({ name: 'password', type: 'string' });
-        await client.query("UPDATE _tables SET columns = $1 WHERE name = 'users'", [JSON.stringify(cols)]);
-      }
+    // Ensure system admin exists (first admin seeded if none)
+    const adminCount = await client.query('SELECT COUNT(*) FROM admins');
+    if (parseInt(adminCount.rows[0].count) === 0) {
+      const hash = await bcrypt.hash('admin', SALT_ROUNDS);
+      await client.query("INSERT INTO admins (email, password) VALUES ('admin@localhost', $1)", [hash]);
+      startupLog('Default admin created: admin@localhost / admin');
     }
 
-    // Create sample items table if not exists
+    // Ensure a system user exists in users table for admin CRUD operations
+    // This user is not shown in Auth Users page (filtered later)
+    const sysUser = await client.query("SELECT id FROM users WHERE email = 'system_admin@internal'");
+    if (sysUser.rowCount === 0) {
+      const hash = await bcrypt.hash('unused', SALT_ROUNDS);
+      const insert = await client.query(
+        "INSERT INTO users (email, password) VALUES ('system_admin@internal', $1) RETURNING id",
+        [hash]
+      );
+      startupLog('System user created for admin operations.');
+    }
+
+    // Register users table metadata (without password column)
+    const userMetaExists = await client.query("SELECT 1 FROM _tables WHERE name = 'users'");
+    if (userMetaExists.rowCount === 0) {
+      await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
+        VALUES ('users', '[{"name":"email","type":"string"}]', '{}', '{}', 9999)`);
+    } else {
+      // Ensure password column is not in metadata
+      let cols = JSON.parse(userMetaExists.rows[0].columns);
+      cols = cols.filter(c => c.name !== 'password');
+      if (!cols.find(c => c.name === 'email')) {
+        cols.unshift({ name: 'email', type: 'string' });
+      }
+      await client.query("UPDATE _tables SET columns = $1 WHERE name = 'users'", [JSON.stringify(cols)]);
+    }
+
+    // Create sample items table
     const itemsExists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
     if (itemsExists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
@@ -128,16 +158,16 @@ async function initDb() {
   }
 }
 
-// Auth middleware – now properly separates admin from regular users
+// Auth middleware
 function authMiddleware(req, res, next) {
   const apiKey = req.headers['x-api-key'];
   if (apiKey) {
     if (ADMIN_KEY && apiKey === ADMIN_KEY) {
-      req.user = { id: 0, email: 'admin', role: 'admin', admin: true };
+      req.user = { id: 0, email: 'admin', type: 'admin', admin: true };
       return next();
     }
     if (ANON_KEY && apiKey === ANON_KEY) {
-      req.user = { id: -1, email: 'anon', role: 'user', admin: false };
+      req.user = { id: -1, email: 'anon', type: 'user', admin: false };
       return next();
     }
   }
@@ -148,15 +178,15 @@ function authMiddleware(req, res, next) {
     try {
       const decoded = jwt.verify(tokenOrKey, JWT_SECRET);
       req.user = decoded;
-      req.user.admin = (req.user.role === 'admin');
+      req.user.admin = (decoded.type === 'admin');
       return next();
     } catch (jwtErr) {
       if (tokenOrKey === ADMIN_KEY) {
-        req.user = { id: 0, email: 'admin', role: 'admin', admin: true };
+        req.user = { id: 0, email: 'admin', type: 'admin', admin: true };
         return next();
       }
       if (tokenOrKey === ANON_KEY) {
-        req.user = { id: -1, email: 'anon', role: 'user', admin: false };
+        req.user = { id: -1, email: 'anon', type: 'user', admin: false };
         return next();
       }
     }
@@ -181,7 +211,6 @@ function applyRule(rule, userId, userEmail) {
   let processed = rule.replace(/@user_id/g, userId.toString());
   processed = processed.replace(/@user_email/g, userEmail || '');
 
-  // Handle IN clause for multiple values
   if (processed.includes(' eq ')) {
     const parts = processed.split(' ');
     const col = parts[0];
@@ -216,24 +245,52 @@ function mapType(type) {
   }
 }
 
-// ==================== AUTH ROUTES ====================
+// ==================== ADMIN AUTH ROUTES ====================
+app.post('/api/admin/register', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+  try {
+    const result = await pool.query(
+      'INSERT INTO admins (email, password) VALUES ($1, $2) RETURNING id, email',
+      [email, hash]
+    );
+    const user = result.rows[0];
+    const tokenPayload = { id: user.id, email: user.email, type: 'admin' };
+    res.json({ user, token: jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' }) });
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Admin email already registered' });
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+app.post('/api/admin/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const result = await pool.query('SELECT * FROM admins WHERE email = $1', [email]);
+  const user = result.rows[0];
+  if (!user) return res.status(400).json({ error: 'Invalid email or password' });
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) return res.status(400).json({ error: 'Invalid email or password' });
+  const tokenPayload = { id: user.id, email: user.email, type: 'admin' };
+  res.json({ user: { id: user.id, email: user.email }, token: jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' }) });
+});
+
+// ==================== USER AUTH ROUTES ====================
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
   try {
-    // Determine role: first user becomes admin, others are regular users
-    const userCount = await pool.query('SELECT COUNT(*) FROM users');
-    const role = (parseInt(userCount.rows[0].count) === 0) ? 'admin' : 'user';
     const result = await pool.query(
-      'INSERT INTO users (email, password, role) VALUES ($1, $2, $3) RETURNING id, email, role',
-      [email, hash, role]
+      'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email',
+      [email, hash]
     );
     const user = result.rows[0];
-    const tokenPayload = { id: user.id, email: user.email, role: user.role };
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ user: { id: user.id, email: user.email, role: user.role }, token });
+    const tokenPayload = { id: user.id, email: user.email, type: 'user' };
+    res.json({ user, token: jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' }) });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Email already registered' });
     res.status(500).json({ error: 'Registration failed' });
@@ -243,14 +300,13 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  const result = await pool.query('SELECT id, email, password, role FROM users WHERE email = $1', [email]);
+  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
   const user = result.rows[0];
   if (!user) return res.status(400).json({ error: 'Invalid email or password' });
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) return res.status(400).json({ error: 'Invalid email or password' });
-  const tokenPayload = { id: user.id, email: user.email, role: user.role };
-  const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ user: { id: user.id, email: user.email, role: user.role }, token });
+  const tokenPayload = { id: user.id, email: user.email, type: 'user' };
+  res.json({ user: { id: user.id, email: user.email }, token: jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '7d' }) });
 });
 
 // ==================== TABLE MANAGEMENT ====================
@@ -277,7 +333,7 @@ app.post('/api/tables', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Name and at least one column required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
-  if (safeName === 'users') return res.status(400).json({ error: 'Table name reserved' });
+  if (safeName === 'users' || safeName === 'admins') return res.status(400).json({ error: 'Table name reserved' });
 
   const colDefs = columns.map(c => {
     const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -325,7 +381,7 @@ app.put('/api/tables/order', authMiddleware, async (req, res) => {
 app.delete('/api/tables/:name', authMiddleware, async (req, res) => {
   if (!req.user.admin) return res.status(403).json({ error: 'Admin access required' });
   const name = req.params.name;
-  if (name === 'users') return res.status(400).json({ error: 'Cannot delete users table' });
+  if (name === 'users' || name === 'admins') return res.status(400).json({ error: 'Cannot delete system table' });
   try {
     const exists = await pool.query('SELECT name FROM _tables WHERE name = $1', [name]);
     if (exists.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
@@ -339,7 +395,7 @@ app.delete('/api/tables/:name', authMiddleware, async (req, res) => {
 app.put('/api/tables/:name', authMiddleware, async (req, res) => {
   if (!req.user.admin) return res.status(403).json({ error: 'Admin access required' });
   const oldName = req.params.name;
-  if (oldName === 'users') return res.status(400).json({ error: 'Cannot rename users table' });
+  if (oldName === 'users' || oldName === 'admins') return res.status(400).json({ error: 'Cannot rename system table' });
   const { newName } = req.body;
   if (!newName) return res.status(400).json({ error: 'New name required' });
   const safeNew = newName.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -375,7 +431,19 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
   try {
     const table = await pool.query('SELECT * FROM _tables WHERE name = $1', [oldName]);
     if (table.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
+
     const oldCols = JSON.parse(table.rows[0].columns);
+    // For users table, never allow password to be included
+    if (oldName === 'users') {
+      // Filter out any attempt to add password
+      const filtered = columns.filter(c => c.name !== 'password');
+      // Ensure email is always present
+      if (!filtered.find(c => c.name === 'email')) {
+        filtered.unshift({ name: 'email', type: 'string' });
+      }
+      return finishSchema(oldName, filtered, oldCols, res);
+    }
+
     const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
     for (const c of newCols) {
       const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
@@ -392,6 +460,23 @@ app.put('/api/tables/:name/schema', authMiddleware, async (req, res) => {
     res.json({ name: oldName, columns });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
+
+async function finishSchema(name, columns, oldCols, res) {
+  const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
+  for (const c of newCols) {
+    const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+    const type = mapType(c.type);
+    let def = '';
+    if (c.default !== undefined && c.default !== '') {
+      if (type === 'BOOLEAN') def = ` DEFAULT ${c.default === 'true' ? 'TRUE' : 'FALSE'}`;
+      else if (type === 'INTEGER' || type === 'REAL') def = ` DEFAULT ${c.default}`;
+      else def = ` DEFAULT '${c.default.replace(/'/g, "''")}'`;
+    }
+    await pool.query(`ALTER TABLE "${name}" ADD COLUMN "${colName}" ${type}${def}`).catch(() => {});
+  }
+  await pool.query('UPDATE _tables SET columns = $1 WHERE name = $2', [JSON.stringify(columns), name]);
+  res.json({ name, columns });
+}
 
 // ==================== DYNAMIC CRUD ====================
 app.get('/api/data/:table', authMiddleware, async (req, res) => {
@@ -418,6 +503,11 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
       query = `SELECT COUNT(*) as total FROM "${table}"`;
     } else {
       query = `SELECT ${selectCols.map(c => `"${c}"`).join(', ')} FROM "${table}"`;
+    }
+
+    // Hide system user
+    if (isUsersTable) {
+      conditions.push(`id <> (SELECT id FROM users WHERE email = 'system_admin@internal')`);
     }
 
     // Privacy only for non-admin
@@ -501,7 +591,6 @@ function parseFilters(req, columns, startIndex) {
         return { conditions, params, nextIndex: idx };
       }
     }
-    // Fallback simple equality
     Object.entries(req.query.filter).forEach(([col, val]) => {
       if (columns.includes(col)) {
         conditions.push(`"${col}" = $${idx}`);
@@ -527,22 +616,27 @@ app.post('/api/data/:table', authMiddleware, async (req, res) => {
     }
 
     const isUsersTable = (table === 'users');
-    if (isUsersTable && !req.user.admin) return res.status(403).json({ error: 'Admin access required for users table' });
+    if (isUsersTable && !req.user.admin) return res.status(403).json({ error: 'Admin access required' });
 
     const fields = columns.filter(c => req.body[c.name] !== undefined);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
 
+    // Get system user id for admin inserts
+    let userId = req.user.id;
+    if (req.user.admin && !isUsersTable) {
+      const sys = await pool.query("SELECT id FROM users WHERE email = 'system_admin@internal'");
+      userId = sys.rows[0].id;
+    }
+
     if (isUsersTable) {
-      // For users table, handle password hashing if provided
-      const passwordField = fields.find(f => f.name === 'password');
-      if (passwordField) {
+      if (req.body.password) {
         const hash = await bcrypt.hash(req.body.password, SALT_ROUNDS);
         req.body.password = hash;
       }
       const emailField = fields.find(f => f.name === 'email');
       if (!emailField) return res.status(400).json({ error: 'Email is required' });
       const result = await pool.query(
-        `INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email, role`,
+        `INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email`,
         [req.body.email, req.body.password || '']
       );
       return res.status(201).json(result.rows[0]);
@@ -559,7 +653,7 @@ app.post('/api/data/:table', authMiddleware, async (req, res) => {
     });
 
     const query = `INSERT INTO "${table}" (user_id, ${fieldNames.map(n => `"${n}"`).join(', ')}) VALUES ($1, ${placeholders.join(', ')}) RETURNING *`;
-    const result = await pool.query(query, [req.user.id, ...values]);
+    const result = await pool.query(query, [userId, ...values]);
     const newRow = result.rows[0];
     broadcastChange('insert', null, newRow, table);
     triggerWebhooks('insert', null, newRow, table);
@@ -594,7 +688,6 @@ app.put('/api/data/:table/:id', authMiddleware, async (req, res) => {
     if (oldResult.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
     const oldRow = oldResult.rows[0];
 
-    // Special handling for users table: hash password if present
     if (table === 'users' && req.body.password) {
       const hash = await bcrypt.hash(req.body.password, SALT_ROUNDS);
       req.body.password = hash;
@@ -641,7 +734,7 @@ app.delete('/api/data/:table/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// Bulk endpoints
+// Bulk endpoints (admin only)
 app.post('/api/data/:table/bulk/delete', authMiddleware, async (req, res) => {
   if (!req.user.admin) return res.status(403).json({ error: 'Admin access required' });
   const table = req.params.table;
@@ -671,13 +764,6 @@ app.post('/api/data/:table/bulk/update', authMiddleware, async (req, res) => {
   const { ids, field, value } = req.body;
   if (!Array.isArray(ids) || ids.length === 0 || !field) return res.status(400).json({ error: 'ids array, field, and value required' });
   try {
-    const meta = await pool.query('SELECT column_permissions FROM _tables WHERE name = $1', [table]);
-    if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
-    const colPerms = JSON.parse(meta.rows[0].column_permissions || '{}');
-    if (!req.user.admin && colPerms.update && !colPerms.update.includes(field)) {
-      return res.status(403).json({ error: 'Update not allowed for this column' });
-    }
-
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -695,7 +781,7 @@ app.post('/api/data/:table/bulk/update', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Webhooks
+// Webhooks (admin only)
 app.get('/api/webhooks/:table', authMiddleware, async (req, res) => {
   if (!req.user.admin) return res.status(403).json({ error: 'Admin access required' });
   try {
@@ -723,7 +809,6 @@ app.delete('/api/webhooks/:id', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ==================== AUTH KEYS ENDPOINT ====================
 app.get('/api/auth-keys', authMiddleware, async (req, res) => {
   if (req.user.admin) {
     res.json({ anonKey: ANON_KEY, adminKey: ADMIN_KEY });
@@ -732,7 +817,6 @@ app.get('/api/auth-keys', authMiddleware, async (req, res) => {
   }
 });
 
-// Health, WebSocket
 app.get('/health', async (req, res) => {
   try { await pool.query('SELECT 1'); res.send('OK'); } catch { res.status(500).send('DB connection failed'); }
 });
