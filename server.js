@@ -93,14 +93,14 @@ async function initDb() {
     try { await client.query("ALTER TABLE _webhooks DROP COLUMN IF EXISTS event"); } catch (e) {}
     try { await client.query("ALTER TABLE _tables ADD COLUMN IF NOT EXISTS column_permissions TEXT DEFAULT '{}'"); } catch (e) {}
 
-    // Ensure the users table is registered in _tables (for auth page metadata)
+    // Ensure users table is registered in _tables
     const userMetaExists = await client.query("SELECT 1 FROM _tables WHERE name = 'users'");
     if (userMetaExists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
         VALUES ('users', '[{"name":"email","type":"string"}]', '{}', '{}', 9999)`);
     }
 
-    // Create a sample items table if not exists
+    // Create sample items table if not exists
     const itemsExists = await client.query("SELECT name FROM _tables WHERE name = 'items'");
     if (itemsExists.rowCount === 0) {
       await client.query(`INSERT INTO _tables (name, columns, privacy, column_permissions, sort_order)
@@ -166,7 +166,6 @@ const opMap = {
 
 function applyRule(rule, userId, userEmail) {
   if (!rule || !rule.trim()) return null;
-  // Replace @user_id and @user_email with actual values
   let processed = rule.replace(/@user_id/g, userId.toString());
   processed = processed.replace(/@user_email/g, userEmail || '');
 
@@ -191,7 +190,7 @@ function applyRule(rule, userId, userEmail) {
     }
     sql = parts.join(' ');
   }
-  return { sql, params: [] }; // no params needed here because values already substituted
+  return { sql, params: [] };
 }
 
 function mapType(type) {
@@ -238,7 +237,7 @@ app.post('/api/login', async (req, res) => {
 // ==================== TABLE MANAGEMENT ====================
 app.get('/api/tables', authMiddleware, async (req, res) => {
   try {
-    // Do not expose the internal 'users' table as a regular data table
+    // Exclude the internal users table from the regular table list
     const result = await pool.query(
       "SELECT name, columns, privacy, column_permissions, sort_order FROM _tables WHERE name != 'users' ORDER BY sort_order, id"
     );
@@ -291,7 +290,6 @@ app.put('/api/tables/order', authMiddleware, async (req, res) => {
     try {
       await client.query('BEGIN');
       for (let i = 0; i < order.length; i++) {
-        // Prevent reordering the internal users table
         await client.query('UPDATE _tables SET sort_order = $1 WHERE name = $2 AND name != \'users\'', [i, order[i]]);
       }
       await client.query('COMMIT');
@@ -380,8 +378,12 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     const privacy = JSON.parse(meta.rows[0].privacy || '{}');
     const colPerms = JSON.parse(meta.rows[0].column_permissions || '{}');
     const allowedCols = req.user.admin ? columns.map(c => c.name) : (colPerms.read || columns.map(c => c.name));
-    // Always include id and user_id in the select set (but id is already present)
-    const selectCols = ['id', 'user_id', ...allowedCols.filter(c => c !== 'id' && c !== 'user_id')];
+
+    // For users table, we never have user_id column
+    const isUsersTable = (table === 'users');
+    const selectCols = ['id'];
+    if (!isUsersTable) selectCols.push('user_id');
+    selectCols.push(...allowedCols.filter(c => c !== 'id' && c !== 'user_id'));
 
     let query;
     const conditions = [];
@@ -413,8 +415,7 @@ app.get('/api/data/:table', authMiddleware, async (req, res) => {
     if (conditions.length > 0) query += ' WHERE ' + conditions.join(' AND ');
 
     if (req.query.count !== 'true') {
-      // sorting: allow id and user_id as well
-      const sortableCols = ['id', 'user_id', ...allowedCols.filter(c => c !== 'id' && c !== 'user_id')];
+      const sortableCols = selectCols; // allow sorting by any selected column
       if (req.query.sort && sortableCols.includes(req.query.sort)) {
         query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`;
       } else {
@@ -494,6 +495,15 @@ app.post('/api/data/:table', authMiddleware, async (req, res) => {
 
     const fields = columns.filter(c => req.body[c.name] !== undefined);
     if (fields.length === 0) return res.status(400).json({ error: 'No valid fields' });
+
+    const isUsersTable = (table === 'users');
+    if (isUsersTable) {
+      // For users table, we just insert email and password? Actually users table has only email and password columns.
+      // But password is not in metadata columns (because we didn't add it). So we handle password separately.
+      // However, this endpoint shouldn't be used for users table directly by admin; we have separate register.
+      // We'll just disallow insert via this route for users table.
+      return res.status(400).json({ error: 'Use /api/register to add users' });
+    }
 
     const fieldNames = fields.map(f => f.name);
     const placeholders = fields.map((_, i) => `$${i + 2}`);
