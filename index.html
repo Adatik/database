@@ -17,15 +17,395 @@
     })();
   </script>
   <style>
-    /* ... same styles as before ... */
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
+    .modal-overlay.active { display: flex; }
+    .action-dropdown { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; min-width: 120px; display: none; }
+    .dark .action-dropdown { background: #1A1F24; border-color: #374151; }
+    .action-dropdown.show { display: block; }
+    .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 200px; display: none; }
+    .dark .user-menu { background: #1A1F24; border-color: #374151; }
+    .user-menu.show { display: block; }
+    th { cursor: pointer; user-select: none; }
+    th:hover { background-color: rgba(0,0,0,0.05); }
+    .dark th:hover { background-color: rgba(255,255,255,0.05); }
+    .drag-handle { cursor: grab; padding: 0 4px; color: #9ca3af; }
+    .drag-handle:active { cursor: grabbing; }
+    .dragging { opacity: 0.5; }
+    .edit-popup { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
+    .dark .edit-popup { background: #1A1F24; border-color: #374151; }
+    .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
+    .dark .filter-panel { background: #1A1F24; border-color: #374151; }
+    select { border-color: #324380; border-radius: 6px; }
+    select:focus { border-color: #091747; outline: none; }
+    .webhook-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .dark .webhook-item { border-color: #374151; }
+    table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
+    #data-table-container { overflow: visible !important; }
+    td { position: relative; }
+    .privacy-rule-card {
+      border: 1px solid #324380;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: white;
+    }
+    .dark .privacy-rule-card { background: #1A1F24; border-color: #374151; }
+    .mini-perms-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .mini-perms-table th, .mini-perms-table td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; }
+    .dark .mini-perms-table th, .dark .mini-perms-table td { border-color: #374151; }
+    .mini-perms-table th { background: #F1F4F8; }
+    .dark .mini-perms-table th { background: #1A1F24; }
+    .opacity-70 { opacity: 0.7; }
+    .nav-btn { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: 8px; transition: background 0.2s; margin-bottom: 4px; }
+    .nav-btn:hover { background-color: #f1f5f9; }
+    .dark .nav-btn:hover { background-color: #1e293b; }
+    .nav-btn.active { background-color: #091747; color: white; }
+    .nav-btn.active:hover { background-color: #091747; }
+    .webhook-header-row { display: flex; gap: 4px; align-items: center; }
+    .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
+    #webhook-headers { overflow-x: hidden; max-width: 100%; }
+    .project-card { border: 1px solid #324380; border-radius: 12px; padding: 16px; background: white; display: flex; flex-direction: column; gap: 8px; }
+    .dark .project-card { background: #1A1F24; border-color: #374151; }
+    .project-avatar { width: 48px; height: 48px; border-radius: 50%; background: #091747; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
+    .brand-btn { background-color: #091747; color: white; border: 2px solid #324380; border-radius: 8px; transition: background 0.2s; }
+    .brand-btn:hover { background-color: #324380; }
+    .brand-outline-btn { background: transparent; border: 2px solid #324380; color: #324380; border-radius: 8px; }
+    .brand-outline-btn:hover { background: #091747; color: white; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
-  <!-- Auth Container ... -->
-  <!-- Main App ... -->
-  <!-- All modals ... -->
 
-  <!-- API Docs Modal (updated) -->
+  <!-- Auth Container -->
+  <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-[#1A1F24] rounded-xl shadow-xl space-y-4">
+    <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">My Database</h1>
+    <p class="text-sm text-center text-[#57636C] dark:text-[#95A1AC]">Sign in to your platform account</p>
+    <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+    <input type="password" id="password" placeholder="Password" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+    <div class="flex gap-2" id="auth-buttons">
+      <button id="signup-btn" onclick="signUp()" class="flex-1 brand-btn py-3 rounded-lg font-semibold hidden">Sign Up</button>
+      <button onclick="signIn()" class="flex-1 brand-btn py-3 rounded-lg font-semibold">Sign In</button>
+    </div>
+    <p id="auth-message" class="text-sm text-red-500 text-center"></p>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-container" class="flex flex-1 h-screen hidden">
+    <!-- Thin navigation bar -->
+    <div class="w-16 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm p-2 space-y-2">
+      <div class="nav-btn active" id="nav-projects" onclick="switchView('projects')" title="Projects">
+        <span class="text-xl">📁</span>
+      </div>
+      <div class="nav-btn" id="nav-database" onclick="switchView('database')" title="Database">
+        <span class="text-xl">📊</span>
+      </div>
+      <div class="nav-btn" id="nav-auth" onclick="switchView('auth')" title="Authentication">
+        <span class="text-xl">🔐</span>
+      </div>
+    </div>
+
+    <!-- Content sidebar (for database & auth views) -->
+    <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm hidden">
+      <div id="database-sidebar">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-lg text-[#101213] dark:text-white">Tables</h2>
+            <button onclick="openCreateTableModal()" class="brand-btn w-7 h-7 rounded-full flex items-center justify-center" style="border-radius:8px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+          <ul id="table-list" class="space-y-1 max-h-[70vh] overflow-y-auto"></ul>
+        </div>
+      </div>
+      <div id="auth-sidebar" class="hidden p-4">
+        <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Users</p>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- Top Bar -->
+      <div class="bg-white dark:bg-[#1A1F24] border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
+        <h1 id="current-table-name" class="text-xl font-semibold text-[#101213] dark:text-white">Projects</h1>
+        <div class="flex items-center gap-3 flex-wrap" id="top-bar-actions">
+          <span id="projects-actions">
+            <button onclick="openProjectModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Create Project</button>
+          </span>
+          <span id="database-actions" class="hidden">
+            <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Edit Table</button>
+            <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Add Row</button>
+            <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Privacy</button>
+            <button onclick="openApiModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">API</button>
+            <button onclick="openWebhooksModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Webhooks</button>
+            <button onclick="exportCSV()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Export CSV</button>
+          </span>
+          <span id="auth-actions" class="hidden">
+            <button onclick="openAddUserModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Add User</button>
+            <button onclick="openAuthApiModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">API</button>
+          </span>
+          <div class="relative">
+            <button onclick="toggleLogsModal()" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition text-xl">🔔</button>
+          </div>
+          <div class="relative">
+            <button id="user-menu-button" class="flex items-center space-x-2 text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition">
+              <span class="text-xl">👤</span>
+              <span id="user-email-display" class="hidden sm:inline text-sm"></span>
+            </button>
+            <div id="user-menu-dropdown" class="user-menu">
+              <div class="p-3 border-b dark:border-gray-600">
+                <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Signed in as</p>
+                <p id="user-email-full" class="text-sm font-medium text-[#101213] dark:text-white truncate"></p>
+              </div>
+              <button onclick="toggleDarkMode()" class="w-full text-left px-4 py-2 text-sm text-[#57636C] dark:text-[#95A1AC] hover:bg-gray-100 dark:hover:bg-gray-700 transition">🌓 Toggle dark mode</button>
+              <button onclick="signOut()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="flex-1 overflow-auto p-6">
+        <!-- Projects Grid View -->
+        <div id="project-grid-area">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="projects-grid"></div>
+        </div>
+
+        <!-- Database View Content (hidden initially) -->
+        <div id="database-table-area" class="hidden">
+          <div class="flex items-center justify-between mb-4">
+            <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" oninput="applySearch()" />
+            <div class="relative">
+              <button onclick="toggleFilterPanel()" class="w-10 h-10 rounded-full brand-btn flex items-center justify-center shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <div id="filter-panel" class="filter-panel">
+                <h4 class="font-medium mb-2 text-[#101213] dark:text-white">Filters</h4>
+                <div id="filter-conditions" class="space-y-2 mb-3"></div>
+                <button onclick="addFilterCondition()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add filter</button>
+                <div class="flex gap-2 mt-3">
+                  <button onclick="applyFilters()" class="brand-btn px-4 py-1 rounded-lg text-sm">Apply</button>
+                  <button onclick="clearAllFilters()" class="brand-outline-btn px-4 py-1 rounded-lg text-sm">Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="bulk-bar" class="flex items-center justify-between mb-2 hidden">
+            <span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="selected-count">0</span> of <span id="total-row-count">0</span> rows selected</span>
+            <div class="flex gap-2">
+              <button onclick="bulkDelete()" class="px-3 py-1 text-sm bg-red-500 text-white rounded-lg border-2 border-[#324380] hover:bg-red-600 transition" style="border-radius:8px;">Delete Selected</button>
+              <button onclick="openBulkEditModal()" class="px-3 py-1 text-sm brand-btn rounded-lg">Bulk Edit</button>
+              <button onclick="bulkDuplicate()" class="px-3 py-1 text-sm brand-btn rounded-lg">Duplicate Selected</button>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
+            <table class="w-full" id="data-table">
+              <thead id="table-head"></thead>
+              <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+            </table>
+          </div>
+          <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">No tables yet. Create one to get started.</div>
+
+          <div id="pagination" class="flex items-center justify-between mt-4 hidden">
+            <div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">
+              Show
+              <select id="rows-per-page" onchange="changeRowsPerPage()" class="border p-1 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+              rows
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span></span>
+              <div class="flex gap-1">
+                <button onclick="prevPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>
+                <span id="page-numbers" class="flex gap-1"></span>
+                <button onclick="nextPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Authentication Table Area (with search and filter) -->
+        <div id="auth-table-area" class="hidden">
+          <div class="flex items-center justify-between mb-4">
+            <input type="text" id="auth-search-input" placeholder="Search users..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" oninput="applyAuthSearch()" />
+            <div class="relative">
+              <button onclick="toggleAuthFilterPanel()" class="w-10 h-10 rounded-full brand-btn flex items-center justify-center shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                </svg>
+              </button>
+              <div id="auth-filter-panel" class="filter-panel">
+                <h4 class="font-medium mb-2 text-[#101213] dark:text-white">Filters</h4>
+                <div id="auth-filter-conditions" class="space-y-2 mb-3"></div>
+                <button onclick="addAuthFilterCondition()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add filter</button>
+                <div class="flex gap-2 mt-3">
+                  <button onclick="applyAuthFilters()" class="brand-btn px-4 py-1 rounded-lg text-sm">Apply</button>
+                  <button onclick="clearAllAuthFilters()" class="brand-outline-btn px-4 py-1 rounded-lg text-sm">Clear</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden">
+            <table class="w-full" id="users-table">
+              <thead id="users-table-head">
+                <tr class="bg-[#091747] text-white text-sm">
+                  <th class="px-4 py-3 text-left">ID</th>
+                  <th class="px-4 py-3 text-left">Email</th>
+                  <!-- Custom columns will be inserted here -->
+                  <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
+
+  <!-- ============= MODALS ============= -->
+  <!-- Create Table Modal -->
+  <div id="create-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3>
+      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+      <div id="new-columns" class="space-y-3 mb-3"></div>
+      <button onclick="addColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button>
+      <p id="create-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="createTable()" class="brand-btn px-4 py-2 rounded-lg flex-1">Create</button>
+        <button onclick="closeModal('create-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Table Schema Modal -->
+  <div id="edit-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit Table: <span id="edit-table-name"></span></h3>
+      <div id="edit-columns" class="space-y-3 mb-3"></div>
+      <button onclick="addEditColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button>
+      <p id="edit-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="saveTableSchema()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save Changes</button>
+        <button onclick="closeModal('edit-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Row Modal -->
+  <div id="add-row-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add New Row</h3>
+      <div id="add-row-fields" class="space-y-3"></div>
+      <p id="add-row-error" class="text-red-500 text-sm mt-2 hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmAddRow()" class="brand-btn px-4 py-2 rounded-lg flex-1">Add Row</button>
+        <button onclick="closeModal('add-row-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Edit Modal -->
+  <div id="bulk-edit-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Bulk Update Selected Rows</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">Column to update</label>
+          <select id="bulk-edit-column" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;"></select>
+        </div>
+        <div>
+          <label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">New value</label>
+          <input id="bulk-edit-value" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmBulkEdit()" class="brand-btn px-4 py-2 rounded-lg flex-1">Apply</button>
+        <button onclick="closeModal('bulk-edit-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Privacy Modal -->
+  <div id="privacy-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
+      <div id="privacy-rules-container" class="space-y-4"></div>
+      <button onclick="addPrivacyRuleCard()" class="mt-2 text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add rule</button>
+      <div class="flex gap-2 mt-4">
+        <button onclick="savePrivacyRules()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save Rules</button>
+        <button onclick="closeModal('privacy-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhooks Modal -->
+  <div id="webhooks-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Webhooks for <span id="webhooks-table-name"></span></h3>
+        <button onclick="openWebhookFormModal()" class="brand-btn px-4 py-2 rounded-lg text-sm">+ New Webhook</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="webhooks-table">
+          <thead>
+            <tr class="bg-[#091747] text-white">
+              <th class="px-3 py-2 text-left">Name</th>
+              <th class="px-3 py-2 text-left">URL</th>
+              <th class="px-3 py-2 text-left">Events</th>
+              <th class="px-3 py-2 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="webhooks-table-body" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+      <button onclick="closeModal('webhooks-modal')" class="mt-4 brand-outline-btn px-4 py-2 rounded-lg w-full">Close</button>
+    </div>
+  </div>
+
+  <!-- Webhook Form Modal -->
+  <div id="webhook-form-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 id="webhook-form-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add Webhook</h3>
+      <div class="space-y-3">
+        <input id="webhook-name" placeholder="Webhook name (optional)" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <input id="webhook-url" placeholder="URL" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <div>
+          <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Events</label>
+          <div class="flex gap-2 mt-1">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="insert"> Insert</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="update"> Update</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="delete"> Delete</label>
+          </div>
+        </div>
+        <div>
+          <label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Headers</label>
+          <div id="webhook-headers" class="space-y-2 mt-1 max-h-40 overflow-y-auto"></div>
+          <button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline mt-1">+ Add header</button>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="saveWebhook()" class="brand-btn px-4 py-2 rounded-lg text-sm">Save Webhook</button>
+          <button onclick="closeModal('webhook-form-modal')" class="brand-outline-btn px-4 py-2 rounded-lg text-sm">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Docs Modal (database tables) -->
   <div id="api-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
@@ -38,7 +418,122 @@
       <div id="api-content" class="space-y-6"></div>
     </div>
   </div>
-  <script>
+
+  <!-- Auth API Modal -->
+  <div id="auth-api-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Auth API Configuration</h3>
+        <div class="flex items-center gap-2">
+          <button onclick="closeModal('auth-api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+        </div>
+      </div>
+      <div id="auth-api-content" class="space-y-6"></div>
+    </div>
+  </div>
+
+  <!-- Logs Modal -->
+  <div id="logs-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-[#101213] dark:text-white">Real‑Time Change Log</h3>
+        <button onclick="closeModal('logs-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button>
+      </div>
+      <div id="logs-content" class="text-sm space-y-1 text-[#57636C] dark:text-[#95A1AC] max-h-[60vh] overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Delete Table Modal -->
+  <div id="delete-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Table</h3>
+      <p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p>
+      <div class="flex items-center gap-2 mb-2">
+        <input id="delete-confirm-input" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-red-400 outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" placeholder="Table name" />
+        <button onclick="copyTableName()" class="brand-outline-btn px-2 py-1 rounded text-sm">Copy</button>
+      </div>
+      <p id="delete-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg flex-1" style="border-radius:8px;">Delete</button>
+        <button onclick="closeModal('delete-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Table Modal -->
+  <div id="rename-table-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Rename Table</h3>
+      <input id="rename-table-input" class="w-full border p-2 rounded-lg mb-3 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
+      <p id="rename-table-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2 mt-4">
+        <button onclick="confirmRenameTable()" class="brand-btn px-4 py-2 rounded-lg flex-1">Rename</button>
+        <button onclick="closeModal('rename-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add User Modal -->
+  <div id="add-user-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add User</h3>
+      <div class="space-y-3">
+        <input id="new-user-email" placeholder="Email" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <input id="new-user-password" type="password" placeholder="Password" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="addUser()" class="brand-btn px-4 py-2 rounded-lg flex-1">Add User</button>
+        <button onclick="closeModal('add-user-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div id="edit-user-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit User</h3>
+      <input type="hidden" id="edit-user-id" />
+      <div class="space-y-3">
+        <input id="edit-user-email" placeholder="Email" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <input id="edit-user-password" type="password" placeholder="New password (leave blank to keep)" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;" />
+        <div class="custom-fields-container space-y-3"></div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="saveEditUser()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save</button>
+        <button onclick="closeModal('edit-user-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Modal (Create/Edit) -->
+  <div id="project-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 id="project-modal-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create Project</h3>
+      <input type="hidden" id="edit-project-id" />
+      <input id="project-name" placeholder="Project name" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" />
+      <textarea id="project-description" placeholder="Description (optional)" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" rows="3"></textarea>
+      <div class="flex gap-2">
+        <button onclick="saveProject()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save</button>
+        <button onclick="closeModal('project-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Project Modal -->
+  <div id="delete-project-modal" class="modal-overlay">
+    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md">
+      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Project</h3>
+      <p class="text-sm mb-3">This action cannot be undone. All data will be permanently deleted.</p>
+      <input type="hidden" id="delete-project-id" />
+      <input type="password" id="delete-project-password" placeholder="Enter your account password" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" />
+      <p id="delete-project-error" class="text-red-500 text-sm hidden"></p>
+      <div class="flex gap-2">
+        <button onclick="confirmDeleteProject()" class="bg-red-600 text-white px-4 py-2 rounded-lg flex-1">Delete</button>
+        <button onclick="closeModal('delete-project-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button>
+      </div>
+    </div>
+  </div>
+    <script>
     // ================ GLOBALS ================
     const API_BASE = window.location.origin;
     let token = localStorage.getItem('token');
@@ -67,6 +562,7 @@
       date: ['eq','neq','gt','lt','gte','lte'],
       datetime: ['eq','neq','gt','lt','gte','lte']
     };
+    // Privacy rules: { column, operator, reference, values (comma string), columns (perms) }
     let privacyRules = [];
     let currentPage = 1;
     let rowsPerPage = 10;
@@ -122,6 +618,7 @@
       try { return JSON.parse(atob(token.split('.')[1])).email || ''; } catch { return ''; }
     }
 
+    // Clear all state on sign out
     function clearAllState() {
       localStorage.removeItem('token');
       localStorage.removeItem('activeProjectId');
@@ -603,7 +1100,7 @@
       loadUsersTable();
     }
 
-    // ======= TABLE LIST & DATA =======
+    // ======= TABLE LIST (for database view) =======
     async function loadAllTables() {
       if (!token || !activeProjectId) return;
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables`, {
