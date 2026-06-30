@@ -57,7 +57,7 @@
     .mini-perms-table th { background: #F1F4F8; }
     .dark .mini-perms-table th { background: #1A1F24; }
     .opacity-70 { opacity: 0.7; }
-    .nav-btn { cursor: pointer; display: flex; align-items: center; width: 100%; padding: 12px; border-radius: 8px; transition: background 0.2s; margin-bottom: 4px; }
+    .nav-btn { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: 8px; transition: background 0.2s; margin-bottom: 4px; }
     .nav-btn:hover { background-color: #f1f5f9; }
     .dark .nav-btn:hover { background-color: #1e293b; }
     .nav-btn.active { background-color: #091747; color: white; }
@@ -80,22 +80,24 @@
 
   <!-- Main App -->
   <div id="app-container" class="flex flex-1 h-screen hidden">
-    <!-- Sidebar -->
-    <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
-      <!-- Navigation -->
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
-        <div class="nav-btn active" id="nav-database" onclick="switchView('database')">
-          <span class="text-xl">📊</span>
-          <span class="ml-2 text-sm font-medium">Database</span>
-        </div>
-        <div class="nav-btn" id="nav-auth" onclick="switchView('auth')">
-          <span class="text-xl">🔐</span>
-          <span class="ml-2 text-sm font-medium">Authentication</span>
-        </div>
+    <!-- Left navigation bar (thin) -->
+    <div class="w-16 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm p-2 space-y-2">
+      <div class="nav-btn active" id="nav-database" onclick="switchView('database')" title="Database">
+        <span class="text-xl">📊</span>
       </div>
+      <div class="nav-btn" id="nav-auth" onclick="switchView('auth')" title="Authentication">
+        <span class="text-xl">🔐</span>
+      </div>
+      <div class="mt-auto">
+        <button onclick="toggleDarkMode()" class="nav-btn" id="theme-toggle" title="Toggle dark mode">🌓</button>
+        <button onclick="signOut()" class="nav-btn" title="Logout">🚪</button>
+      </div>
+    </div>
 
+    <!-- Second sidebar (content sidebar) -->
+    <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
       <!-- Database view sidebar content -->
-      <div id="database-view" class="flex-1 flex flex-col">
+      <div id="database-sidebar">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
           <div class="flex items-center justify-between mb-4">
             <h2 class="font-bold text-lg text-[#101213] dark:text-white">Tables</h2>
@@ -108,15 +110,9 @@
           <ul id="table-list" class="space-y-1"></ul>
         </div>
       </div>
-
       <!-- Auth view sidebar content (hidden by default) -->
-      <div id="auth-view" class="hidden flex-1 flex flex-col p-4">
+      <div id="auth-sidebar" class="hidden p-4">
         <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Users</p>
-      </div>
-
-      <div class="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        <button onclick="toggleDarkMode()" class="w-full text-left text-sm text-[#57636C] dark:text-[#95A1AC] hover:bg-gray-100 dark:hover:bg-[#1A1F24] px-2 py-1 rounded" id="theme-toggle">🌓 Dark mode</button>
-        <button onclick="signOut()" class="w-full bg-gray-100 dark:bg-[#1A1F24] hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-lg text-[#57636C] dark:text-[#95A1AC] font-medium border-2 border-[#324380] transition" style="border-radius:8px;">Logout</button>
       </div>
     </div>
 
@@ -305,7 +301,7 @@
     </div>
   </div>
 
-  <!-- Privacy Modal (with value field as requested) -->
+  <!-- Privacy Modal (with value field) -->
   <div id="privacy-modal" class="modal-overlay">
     <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-y-auto">
       <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Privacy & Permissions for <span id="privacy-table-name"></span></h3>
@@ -491,7 +487,7 @@
         localStorage.theme = 'dark';
       }
       document.getElementById('theme-toggle').textContent = 
-        html.classList.contains('dark') ? '☀️ Light mode' : '🌓 Dark mode';
+        html.classList.contains('dark') ? '☀️' : '🌓';
     }
 
     // Toast
@@ -517,7 +513,7 @@
       document.getElementById('user-email-display').textContent = email;
       document.getElementById('user-email-full').textContent = email;
       document.getElementById('theme-toggle').textContent = 
-        document.documentElement.classList.contains('dark') ? '☀️ Light mode' : '🌓 Dark mode';
+        document.documentElement.classList.contains('dark') ? '☀️' : '🌓';
       await loadAllTables();
       connectWebSocket();
       // Start in database view by default
@@ -602,8 +598,8 @@
 
     // ======= NAVIGATION =======
     function switchView(view) {
-      const databaseView = document.getElementById('database-view');
-      const authView = document.getElementById('auth-view');
+      const databaseSidebar = document.getElementById('database-sidebar');
+      const authSidebar = document.getElementById('auth-sidebar');
       const databaseTableArea = document.getElementById('database-table-area');
       const authTableArea = document.getElementById('auth-table-area');
       const databaseActions = document.getElementById('database-actions');
@@ -612,8 +608,8 @@
       const navAuth = document.getElementById('nav-auth');
 
       if (view === 'database') {
-        databaseView.classList.remove('hidden');
-        authView.classList.add('hidden');
+        databaseSidebar.classList.remove('hidden');
+        authSidebar.classList.add('hidden');
         databaseTableArea.classList.remove('hidden');
         authTableArea.classList.add('hidden');
         databaseActions.classList.remove('hidden');
@@ -623,8 +619,8 @@
         selectedTable = null;
         loadAllTables();
       } else if (view === 'auth') {
-        databaseView.classList.add('hidden');
-        authView.classList.remove('hidden');
+        databaseSidebar.classList.add('hidden');
+        authSidebar.classList.remove('hidden');
         databaseTableArea.classList.add('hidden');
         authTableArea.classList.remove('hidden');
         databaseActions.classList.add('hidden');
