@@ -1,266 +1,74 @@
-<!DOCTYPE html>
-<html lang="en" class="">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My Database Admin</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { darkMode: 'class' };
-    (function() {
-      const stored = localStorage.getItem('theme');
-      if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+function createNode(type, overrides = {}) {
+    if (type === 'HiddenRoot') return { id: uid(), type: 'HiddenRoot', displayName: '', properties: { backgroundColor: 'transparent', backgroundGradient: null, backgroundImage: '', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', padding: { top:0, right:0, bottom:0, left:0 }, margin: { top:0, right:0, bottom:0, left:0 }, borderRadius: { tl:0, tr:0, bl:0, br:0 }, width: 'auto', height: 'auto', widthUnit: 'px', heightUnit: 'px', minWidth: '', minHeight: '', maxWidth: '', maxHeight: '', border: 'none', boxShadow: 'none', gap: '0', mainAxisAlignment: 'flex-start', crossAxisAlignment: 'stretch', opacity: '1', rotation: '0', paddingUnified: false, marginUnified: false, borderRadiusUnified: false, canvasHidden: false }, children: [] };
+    const base = { id: uid(), type, displayName: type, properties: { backgroundColor: 'transparent', backgroundGradient: null, backgroundImage: '', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', padding: { top:0, right:0, bottom:0, left:0 }, margin: { top:0, right:0, bottom:0, left:0 }, borderRadius: { tl:0, tr:0, bl:0, br:0 }, width: 'auto', height: 'auto', widthUnit: 'px', heightUnit: 'px', minWidth: '', minHeight: '', maxWidth: '', maxHeight: '', border: 'none', boxShadow: 'none', borderColor: '#000000', borderWidth: 0, borderStyle: 'solid', borderSide: 'all', shadowColor: 'rgba(0,0,0,0.1)', shadowBlur: 0, shadowSpread: 0, shadowOffsetX: 0, shadowOffsetY: 0, scrollable: false, gap: '16', mainAxisAlignment: 'flex-start', crossAxisAlignment: 'stretch', text: 'Sample', fontSize: '16', color: '#0f172a', textAlign: 'left', src: 'https://picsum.photos/300/200', iconName: 'star', hint: 'Enter text...', fontWeight: 'normal', fontStyle: 'normal', textDecoration: 'none', letterSpacing: '0', lineHeight: '1.5', opacity: '1', rotation: '0', wrapEnabled: false, wrapReverse: false, fontFamily: 'Inter', textTransform: 'none', top: null, left: null, right: null, bottom: null, leftPercent: 0, topPercent: 0, paddingUnified: false, marginUnified: false, borderRadiusUnified: false, canvasHidden: false,
+      visibility: {
+        enabled: false,
+        responsiveVisibility: { desktop: true, tablet: true, mobile: true },
+        conditions: [],
+        conditionCombinators: []
       }
-    })();
-  </script>
-  <style>
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
-    .modal-overlay.active { display: flex; }
-    .action-dropdown { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 100; min-width: 120px; display: none; }
-    .dark .action-dropdown { background: #1A1F24; border-color: #374151; }
-    .action-dropdown.show { display: block; }
-    .user-menu { position: absolute; right: 0; top: 100%; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 10; min-width: 200px; display: none; }
-    .dark .user-menu { background: #1A1F24; border-color: #374151; }
-    .user-menu.show { display: block; }
-    th { cursor: pointer; user-select: none; }
-    th:hover { background-color: rgba(0,0,0,0.05); }
-    .dark th:hover { background-color: rgba(255,255,255,0.05); }
-    .drag-handle { cursor: grab; padding: 0 4px; color: #9ca3af; }
-    .drag-handle:active { cursor: grabbing; }
-    .dragging { opacity: 0.5; }
-    .edit-popup { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
-    .dark .edit-popup { background: #1A1F24; border-color: #374151; }
-    .filter-panel { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
-    .dark .filter-panel { background: #1A1F24; border-color: #374151; }
-    select { border-color: #324380; border-radius: 6px; }
-    select:focus { border-color: #091747; outline: none; }
-    .webhook-item { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
-    .dark .webhook-item { border-color: #374151; }
-    table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
-    #data-table-container { overflow: visible !important; }
-    td { position: relative; }
-    .privacy-rule-card {
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 12px;
-      background: white;
+    } };
+    if (type === 'Text') { base.properties.text = 'Text block'; base.properties.lineHeight = '1.5'; base.properties.textTransform = 'none'; }
+    if (type === 'Button') { base.properties.text = 'Button'; base.properties.backgroundColor = '#091747'; base.properties.color = '#FFFFFF'; base.properties.borderColor = '#324380'; base.properties.borderWidth = 4; base.properties.borderStyle = 'solid'; base.properties.padding = { top: 8, right: 8, bottom: 8, left: 8 }; base.properties.margin = { top: 8, right: 8, bottom: 8, left: 8 }; base.properties.borderRadius = { tl: 8, tr: 8, bl: 8, br: 8 }; base.properties.fontFamily = 'Inter'; base.properties.fontSize = '16'; base.properties.fontWeight = 'normal'; base.properties.fontStyle = 'normal'; base.properties.textDecoration = 'none'; base.properties.textAlign = 'center'; base.properties.letterSpacing = '0'; base.properties.lineHeight = '1.5'; base.properties.textTransform = 'none'; }
+    if (type === 'Image') { base.properties.src = 'https://picsum.photos/300/200'; base.properties.objectFit = 'cover'; }
+    if (type === 'Video') { base.properties.src = 'https://www.w3schools.com/html/mov_bbb.mp4'; }
+    if (type === 'Icon') { base.properties.iconName = 'star'; base.properties.width = '48'; base.properties.height = '48'; }
+    if (type === 'Countdown') { base.properties.countdownMode = 'date'; base.properties.targetDate = new Date(Date.now()+604800000).toISOString().slice(0,16); base.properties.durationSeconds = 86400; base.properties.showDays = true; base.properties.showHours = true; base.properties.showMinutes = true; base.properties.showSeconds = true; base.properties.daysLabel = 'Days'; base.properties.hoursLabel = 'Hours'; base.properties.minutesLabel = 'Minutes'; base.properties.secondsLabel = 'Seconds'; base.properties.daysLabelColor = '#64748b'; base.properties.hoursLabelColor = '#64748b'; base.properties.minutesLabelColor = '#64748b'; base.properties.secondsLabelColor = '#64748b'; const ld = { fontFamily:'Inter', fontSize:'14', fontWeight:'normal', fontStyle:'normal', textDecoration:'none', textAlign:'center', letterSpacing:'0', lineHeight:'1.5', textTransform:'none' }; for (let unit of ['days','hours','minutes','seconds']) for (let prop in ld) base.properties[unit+'Label'+prop.charAt(0).toUpperCase()+prop.slice(1)] = ld[prop]; base.properties.fontFamily = 'Inter'; base.properties.fontSize = '24'; base.properties.fontWeight = 'bold'; base.properties.fontStyle = 'normal'; base.properties.textDecoration = 'none'; base.properties.color = '#0f172a'; base.properties.textAlign = 'center'; base.properties.letterSpacing = '0'; base.properties.lineHeight = '1.2'; base.properties.textTransform = 'none'; base.properties.gap = '20'; base.properties.mainAxisAlignment = 'center'; base.properties.crossAxisAlignment = 'center'; }
+    if (type === 'TextField') { base.properties.hint = 'Type here'; base.properties.padding = { top: 8, right: 8, bottom: 8, left: 8 }; base.properties.borderRadius = { tl: 8, tr: 8, bl: 8, br: 8 }; base.properties.fontFamily = 'Inter'; base.properties.fontSize = '16'; base.properties.color = '#0f172a'; base.properties.fontWeight = 'normal'; base.properties.fontStyle = 'normal'; base.properties.textDecoration = 'none'; base.properties.textAlign = 'left'; base.properties.letterSpacing = '0'; base.properties.lineHeight = '1.5'; base.properties.textTransform = 'none'; }
+    if (type === 'Card') { base.properties.backgroundColor = '#f8fafc'; base.properties.padding = { top: 20, right: 20, bottom: 20, left: 20 }; base.children = []; }
+    if (type === 'Divider') { base.properties.height = '2'; base.properties.backgroundColor = '#D1D5DB'; }
+    if (type === 'Carousel') {
+      base.properties.carouselMode = 'standard';
+      base.properties.autoplay = true; base.properties.interval = 3000; base.properties.speed = 500; base.properties.loop = true;
+      base.properties.showArrows = true; base.properties.showIndicators = true; base.properties.activeSlideIndex = 0;
+      base.properties.activeWidth = 80; base.properties.activeWidthUnit = '%';
+      base.properties.sideWidth = 60; base.properties.sideWidthUnit = '%';
+      base.properties.activeHeight = 'auto'; base.properties.sideHeight = 'auto';
+      base.properties.activeOpacity = 1; base.properties.sideOpacity = 0.6;
+      base.properties.activeScale = 1; base.properties.sideScale = 0.8;
+      base.properties.slideSpacing = '16';
+      base.properties.indicatorAlignment = 'center';
+      base.properties.thumbnailWidth = '60'; base.properties.thumbnailWidthUnit = 'px';
+      base.properties.thumbnailHeight = '60'; base.properties.thumbnailHeightUnit = 'px';
+      base.properties.thumbnailGap = '8';
+      base.properties.thumbnailPosition = 'bottom';
+      base.properties.thumbnailAlignment = 'center';
+      base.properties.thumbnailVerticalAlignment = 'center';
+      base.properties.arrowColor = '#ffffff'; base.properties.arrowBackground = 'rgba(0,0,0,0.3)';
+      base.properties.indicatorActiveColor = '#ffffff'; base.properties.indicatorInactiveColor = 'rgba(255,255,255,0.5)';
+      base.properties.thumbnailBgMode = 'none';
+      base.properties.thumbnailBgColor = '#ffffff';
+      base.properties.thumbnailBgGradient = null;
+      base.properties.thumbnailBgImage = '';
+      base.properties.thumbnailBgSize = 'cover';
+      base.properties.thumbnailBgPosition = 'center';
+      base.properties.thumbnailBgRepeat = 'no-repeat';
+      base.properties.thumbnailBorderColor = '#e2e8f0';
+      base.properties.thumbnailBorderWidth = 2; base.properties.thumbnailBorderStyle = 'solid';
+      base.properties.thumbnailBorderSide = 'all';
+      base.properties.thumbnailBorderRadius = { tl:4, tr:4, bl:4, br:4 };
+      base.properties.thumbnailBorderRadiusUnified = true;
+      base.properties.selectedThumbnailBorderColor = '#3b82f6';
+      base.properties.selectedThumbnailBorderWidth = 3;
+      base.properties.selectedThumbnailBorderStyle = 'solid';
+      base.properties.selectedThumbnailBgColor = '#ffffff';
+      base.properties.contentAreaWidth = 'auto'; base.properties.contentAreaWidthUnit = 'px';
+      base.properties.contentAreaHeight = 'auto'; base.properties.contentAreaHeightUnit = 'px';
+      base.properties.thumbnailContentScale = 0;
+      base.children = [];
     }
-    .dark .privacy-rule-card { background: #1A1F24; border-color: #374151; }
-    .mini-perms-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    .mini-perms-table th, .mini-perms-table td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; }
-    .dark .mini-perms-table th, .dark .mini-perms-table td { border-color: #374151; }
-    .mini-perms-table th { background: #F1F4F8; }
-    .dark .mini-perms-table th { background: #1A1F24; }
-    .opacity-70 { opacity: 0.7; }
-    .nav-btn { cursor: pointer; display: flex; align-items: center; justify-content: center; width: 100%; padding: 12px; border-radius: 8px; transition: background 0.2s; }
-    .nav-btn:hover { background-color: #f1f5f9; }
-    .dark .nav-btn:hover { background-color: #1e293b; }
-    .nav-btn.active { background-color: #091747; color: white; }
-    .nav-btn.active:hover { background-color: #091747; }
-  </style>
-</head>
-<body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
-
-  <!-- Auth Container -->
-  <div id="auth-container" class="w-full max-w-md mx-auto mt-20 p-6 bg-white dark:bg-[#1A1F24] rounded-xl shadow-xl space-y-4">
-    <h1 class="text-2xl font-bold text-center text-[#101213] dark:text-white">My Database</h1>
-    <input type="email" id="email" placeholder="Email" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-    <input type="password" id="password" placeholder="Password" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-    <div class="flex gap-2">
-      <button onclick="signUp()" class="flex-1 bg-[#091747] text-white py-3 rounded-lg font-semibold border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Sign Up</button>
-      <button onclick="signIn()" class="flex-1 bg-[#091747] text-white py-3 rounded-lg font-semibold border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Sign In</button>
-    </div>
-    <p id="auth-message" class="text-sm text-red-500 text-center"></p>
-  </div>
-
-  <!-- Main App -->
-  <div id="app-container" class="flex flex-1 h-screen hidden">
-    <!-- Sidebar -->
-    <div class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm">
-      <!-- Navigation buttons -->
-      <div class="p-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
-        <div class="nav-btn active" id="nav-database" onclick="switchView('database')">
-          <span class="text-xl">📊</span>
-          <span class="ml-2 text-sm font-medium">Database</span>
-        </div>
-        <div class="nav-btn" id="nav-auth" onclick="switchView('auth')">
-          <span class="text-xl">🔐</span>
-          <span class="ml-2 text-sm font-medium">Authentication</span>
-        </div>
-      </div>
-
-      <!-- Database View Content -->
-      <div id="database-view" class="flex-1 flex flex-col">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="font-bold text-lg text-[#101213] dark:text-white">Tables</h2>
-            <button onclick="openCreateTableModal()" class="bg-[#091747] hover:bg-[#324380] text-white w-7 h-7 rounded-full flex items-center justify-center border-2 border-[#324380] transition" style="border-radius:8px;">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-              </svg>
-            </button>
-          </div>
-          <ul id="table-list" class="space-y-1"></ul>
-        </div>
-      </div>
-
-      <!-- Authentication View Content (hidden by default) -->
-      <div id="auth-view" class="hidden flex-1 flex flex-col p-4">
-        <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Users</p>
-      </div>
-
-      <div class="mt-auto p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        <button onclick="toggleDarkMode()" class="w-full text-left text-sm text-[#57636C] dark:text-[#95A1AC] hover:bg-gray-100 dark:hover:bg-[#1A1F24] px-2 py-1 rounded" id="theme-toggle">🌓 Dark mode</button>
-        <button onclick="signOut()" class="w-full bg-gray-100 dark:bg-[#1A1F24] hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-lg text-[#57636C] dark:text-[#95A1AC] font-medium border-2 border-[#324380] transition" style="border-radius:8px;">Logout</button>
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <!-- Top Bar -->
-      <div class="bg-white dark:bg-[#1A1F24] border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between shadow-sm">
-        <h1 id="current-table-name" class="text-xl font-semibold text-[#101213] dark:text-white">Select a table</h1>
-        <div class="flex items-center gap-3 flex-wrap" id="top-bar-actions">
-          <span id="database-actions">
-            <button onclick="openEditTableModal(selectedTable)" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Edit Table</button>
-            <button onclick="openAddRowModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Add Row</button>
-            <button onclick="openPrivacyModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Privacy</button>
-            <button onclick="openApiModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">API</button>
-            <button onclick="openWebhooksModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Webhooks</button>
-            <button onclick="exportCSV()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Export CSV</button>
-          </span>
-          <span id="auth-actions" class="hidden">
-            <button onclick="openAddUserModal()" class="px-3 py-1.5 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Add User</button>
-          </span>
-          <div class="relative">
-            <button onclick="toggleLogsModal()" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition text-xl">🔔</button>
-          </div>
-          <div class="relative">
-            <button id="user-menu-button" class="flex items-center space-x-2 text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition">
-              <span class="text-xl">👤</span>
-              <span id="user-email-display" class="hidden sm:inline text-sm"></span>
-            </button>
-            <div id="user-menu-dropdown" class="user-menu">
-              <div class="p-3 border-b dark:border-gray-600">
-                <p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Signed in as</p>
-                <p id="user-email-full" class="text-sm font-medium text-[#101213] dark:text-white truncate"></p>
-              </div>
-              <button onclick="signOut()" class="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Sign out</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Table Area -->
-      <div class="flex-1 overflow-auto p-6">
-        <!-- Database View Content -->
-        <div id="database-table-area">
-          <!-- Search & Filter -->
-          <div class="flex items-center justify-between mb-4">
-            <input type="text" id="search-input" placeholder="Search..." class="border p-2 rounded-lg w-64 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" onkeyup="applySearch()" />
-            <div class="relative">
-              <button onclick="toggleFilterPanel()" class="w-10 h-10 rounded-full bg-[#091747] text-white flex items-center justify-center shadow-md hover:bg-[#324380] transition">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-                </svg>
-              </button>
-              <div id="filter-panel" class="filter-panel">
-                <h4 class="font-medium mb-2 text-[#101213] dark:text-white">Filters</h4>
-                <div id="filter-conditions" class="space-y-2 mb-3"></div>
-                <button onclick="addFilterCondition()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline">+ Add filter</button>
-                <div class="flex gap-2 mt-3">
-                  <button onclick="applyFilters()" class="bg-[#091747] text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Apply</button>
-                  <button onclick="clearFilters()" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-1 rounded-lg text-sm border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Clear</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bulk Selection Bar -->
-          <div id="bulk-bar" class="flex items-center justify-between mb-2 hidden">
-            <span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="selected-count">0</span> of <span id="total-row-count">0</span> rows selected</span>
-            <div class="flex gap-2">
-              <button onclick="bulkDelete()" class="px-3 py-1 text-sm bg-red-500 text-white rounded-lg border-2 border-[#324380] hover:bg-red-600 transition" style="border-radius:8px;">Delete Selected</button>
-              <button onclick="openBulkEditModal()" class="px-3 py-1 text-sm bg-[#091747] text-white rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition" style="border-radius:8px;">Bulk Edit</button>
-              <button onclick="bulkDuplicate()" class="px-3 py-1 text-sm bg-green-500 text-white rounded-lg border-2 border-[#324380] hover:bg-green-600 transition" style="border-radius:8px;">Duplicate Selected</button>
-            </div>
-          </div>
-
-          <!-- Data Table -->
-          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container">
-            <table class="w-full" id="data-table">
-              <thead id="table-head"></thead>
-              <tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
-            </table>
-          </div>
-          <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">Select a table from the left to view its data.</div>
-
-          <!-- Pagination -->
-          <div id="pagination" class="flex items-center justify-between mt-4 hidden">
-            <div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">
-              Show
-              <select id="rows-per-page" onchange="changeRowsPerPage()" class="border p-1 rounded dark:bg-[#1A1F24] dark:text-white" style="border-color:#324380;">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              rows
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span></span>
-              <div class="flex gap-1">
-                <button onclick="prevPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button>
-                <span id="page-numbers" class="flex gap-1"></span>
-                <button onclick="nextPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Authentication Table Area (hidden by default) -->
-        <div id="auth-table-area" class="hidden">
-          <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden">
-            <table class="w-full" id="users-table">
-              <thead>
-                <tr class="bg-[#091747] text-white text-sm">
-                  <th class="px-4 py-3 text-left">ID</th>
-                  <th class="px-4 py-3 text-left">Email</th>
-                  <th class="px-4 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="users-table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast -->
-  <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
-
-  <!-- ============= MODALS (same as before, unchanged) ============= -->
-  <!-- Create Table Modal -->
-  <div id="create-table-modal" class="modal-overlay">
-    <div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-      <h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3>
-      <input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />
-      <div id="new-columns" class="space-y-3 mb-3"></div>
-      <button onclick="addColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button>
-      <p id="create-table-error" class="text-red-500 text-sm mt-2 hidden"></p>
-      <div class="flex gap-2 mt-4">
-        <button onclick="createTable()" class="bg-[#091747] text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-[#324380] transition flex-1" style="border-radius:8px;">Create</button>
-        <button onclick="closeModal('create-table-modal')" class="bg-gray-200 dark:bg-[#1A1F24] text-[#101213] dark:text-white px-4 py-2 rounded-lg border-2 border-[#324380] hover:bg-gray-300 dark:hover:bg-gray-600 transition" style="border-radius:8px;">Cancel</button>
-      </div>
-    </div>
-  </div>
-
+    if (type === 'FlippableCard') { base.properties.flipDirection = 'horizontal'; base.properties.flipTrigger = 'hover'; base.properties.animationDuration = 600; base.properties.animationEasing = 'ease'; base.properties.animationDelay = 0; base.properties.editSide = 'front'; base.properties.padding = { top: 0, right: 0, bottom: 0, left: 0 }; base.properties.backgroundColor = 'transparent'; base.properties.width = 'auto'; base.properties.height = '400'; base.properties.heightUnit = 'px'; const frontCol = createNode('Column'); frontCol.displayName = 'Front'; frontCol.properties.padding = { top: 16, right: 16, bottom: 16, left: 16 }; const backCol = createNode('Column'); backCol.displayName = 'Back'; backCol.properties.padding = { top: 16, right: 16, bottom: 16, left: 16 }; base.children = [frontCol, backCol]; }
+    if (type === 'Floating') { base.properties.backgroundColor = '#ffffff'; base.properties.floatingX = '50'; base.properties.floatingXUnit = '%'; base.properties.floatingY = '50'; base.properties.floatingYUnit = '%'; base.properties.floatingWidth = '400'; base.properties.floatingWidthUnit = 'px'; base.properties.floatingHeight = '300'; base.properties.floatingHeightUnit = 'px'; base.properties.floatingOverlayColor = 'rgba(0,0,0,0.5)'; base.properties.floatingOverlayOpacity = 0.5; base.properties.floatingCloseOnOutside = true; base.properties.floatingAutoClose = false; base.properties.floatingAutoCloseDelay = 5000; base.properties.floatingShowOverlay = true; base.properties.floatingZIndex = 10000; base.properties.padding = { top: 16, right: 16, bottom: 16, left: 16 }; base.properties.gap = '16'; base.properties.mainAxisAlignment = 'flex-start'; base.properties.crossAxisAlignment = 'stretch'; base.children = []; }
+    if (type === 'Table') { base.properties.columns = JSON.stringify(['Name', 'Age', 'City']); base.properties.rows = JSON.stringify([['John', '30', 'NYC'], ['Jane', '25', 'LA']]); base.properties.sortable = true; base.properties.headerBgColor = '#f1f5f9'; base.properties.rowBgColor = '#ffffff'; base.properties.oddRowBgColor = '#ffffff'; base.properties.evenRowBgColor = '#f8fafc'; base.properties.headerFontFamily = 'Inter'; base.properties.headerFontSize = '14'; base.properties.headerFontWeight = 'bold'; base.properties.headerFontStyle = 'normal'; base.properties.headerTextDecoration = 'none'; base.properties.headerColor = '#0f172a'; base.properties.headerTextAlign = 'left'; base.properties.headerLetterSpacing = '0'; base.properties.headerLineHeight = '1.5'; base.properties.headerTextTransform = 'none'; base.properties.rowFontFamily = 'Inter'; base.properties.rowFontSize = '14'; base.properties.rowFontWeight = 'normal'; base.properties.rowFontStyle = 'normal'; base.properties.rowTextDecoration = 'none'; base.properties.rowColor = '#0f172a'; base.properties.rowTextAlign = 'left'; base.properties.rowLetterSpacing = '0'; base.properties.rowLineHeight = '1.5'; base.properties.rowTextTransform = 'none'; base.properties.tablePadding = { top: 8, right: 8, bottom: 8, left: 8 }; base.properties.tableBorderRadius = { tl: 8, tr: 8, bl: 8, br: 8 }; base.properties.tableBorderWidth = 0; base.properties.tableBorderColor = '#e2e8f0'; base.properties.tableBorderStyle = 'solid'; base.properties.tableBorderSide = 'all'; base.properties.headerPadding = { top: 8, right: 8, bottom: 8, left: 8 }; base.properties.headerPaddingUnified = false; base.properties.rowPadding = { top: 6, right: 6, bottom: 6, left: 6 }; base.properties.rowPaddingUnified = false; base.properties.cellSpacing = '0'; base.properties.sortStates = '{}'; base.properties.width = '100'; base.properties.widthUnit = '%'; base.properties.headerBorderRadius = { tl:0, tr:0, bl:0, br:0 }; base.properties.headerBorderRadiusUnified = false; base.properties.rowBorderRadius = { tl:0, tr:0, bl:0, br:0 }; base.properties.rowBorderRadiusUnified = false; }
+    if (type === 'ProgressBar') { base.properties.value = 50; base.properties.max = 100; base.properties.barColor = '#3b82f6'; base.properties.showLabel = true; base.properties.labelPosition = 'inside'; base.properties.striped = false; base.properties.animated = false; base.properties.width = '100%'; base.properties.height = '20'; base.properties.fontFamily = 'Inter'; base.properties.fontSize = '12'; base.properties.color = '#ffffff'; base.properties.fontWeight = 'normal'; base.properties.fontStyle = 'normal'; base.properties.textDecoration = 'none'; base.properties.textAlign = 'center'; base.properties.letterSpacing = '0'; base.properties.lineHeight = '1.5'; base.properties.textTransform = 'none'; }
+    if (type === 'Chart') { base.properties.chartType = 'bar'; base.properties.data = JSON.stringify([{ label: 'A', value: 30, color: '#3b82f6' }, { label: 'B', value: 50, color: '#10b981' }, { label: 'C', value: 20, color: '#f59e0b' }]); base.properties.showLegend = true; base.properties.showValues = true; base.properties.title = 'Chart'; base.properties.width = 'auto'; base.properties.height = 'auto'; base.properties.titleFontFamily = 'Inter'; base.properties.titleFontSize = '16'; base.properties.titleFontWeight = 'bold'; base.properties.titleFontStyle = 'normal'; base.properties.titleTextDecoration = 'none'; base.properties.titleColor = '#0f172a'; base.properties.titleTextAlign = 'left'; base.properties.titleLetterSpacing = '0'; base.properties.titleLineHeight = '1.5'; base.properties.titleTextTransform = 'none'; base.properties.valueFontFamily = 'Inter'; base.properties.valueFontSize = '12'; base.properties.valueFontWeight = 'normal'; base.properties.valueFontStyle = 'normal'; base.properties.valueTextDecoration = 'none'; base.properties.valueColor = '#0f172a'; base.properties.valueTextAlign = 'center'; base.properties.valueLetterSpacing = '0'; base.properties.valueLineHeight = '1.5'; base.properties.valueTextTransform = 'none'; base.properties.labelFontFamily = 'Inter'; base.properties.labelFontSize = '12'; base.properties.labelFontWeight = 'normal'; base.properties.labelFontStyle = 'normal'; base.properties.labelTextDecoration = 'none'; base.properties.labelColor = '#0f172a'; base.properties.labelTextAlign = 'center'; base.properties.labelLetterSpacing = '0'; base.properties.labelLineHeight = '1.5'; base.properties.labelTextTransform = 'none'; base.properties.valueOffsetX = 0; base.properties.valueOffsetY = 0; }
+    if (LAYOUT_TYPES.includes(type) && type !== 'Floating') { base.properties.padding = { top: 16, right: 16, bottom: 16, left: 16 }; base.properties.gap = '16'; if (!base.children) base.children = []; }
+    if (type === 'Stack') base.children = [];
+    Object.assign(base.properties, overrides);
+    if (!base.children && LAYOUT_TYPES.includes(type)) base.children = [];
+    applyPageDefaults(base);
+    return base;
+  }
     <script>
     // ================ GLOBALS ================
     const API_BASE = window.location.origin;
