@@ -66,6 +66,20 @@
     .brand-btn:hover { background-color: #324380; }
     .brand-outline-btn { background: transparent; border: 2px solid #324380; color: #324380; border-radius: 8px; }
     .brand-outline-btn:hover { background: #091747; color: white; }
+    /* API docs tables */
+    .api-param-table th { background-color: #091747; color: white; padding: 8px 12px; text-align: left; font-size: 0.8rem; }
+    .api-param-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.8rem; }
+    .dark .api-param-table td { border-color: #374151; }
+    .api-toggle { cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+    .api-toggle:hover { opacity: 0.8; }
+    .code-block { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 0.8rem; position: relative; }
+    .code-block pre { margin: 0; }
+    .response-code { font-weight: bold; }
+    .response-200 { color: #16a34a; }
+    .response-201 { color: #16a34a; }
+    .response-400 { color: #dc2626; }
+    .response-401 { color: #dc2626; }
+    .response-404 { color: #dc2626; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -94,6 +108,7 @@
 
     <!-- Content sidebar -->
     <div id="content-sidebar" class="w-60 bg-white dark:bg-[#1A1F24] border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm hidden">
+      <!-- Database sidebar (tables list) -->
       <div id="database-sidebar">
         <div class="p-4 border-b border-gray-200 dark:border-gray-700">
           <div class="flex items-center justify-between mb-4">
@@ -105,7 +120,21 @@
           <ul id="table-list" class="space-y-1 max-h-[70vh] overflow-y-auto"></ul>
         </div>
       </div>
-      <div id="auth-sidebar" class="hidden p-4"><p class="text-sm text-[#57636C] dark:text-[#95A1AC]">Users</p></div>
+      <!-- Auth sidebar (settings) -->
+      <div id="auth-sidebar" class="hidden p-4 space-y-4">
+        <h2 class="font-bold text-lg text-[#101213] dark:text-white">Auth Settings</h2>
+        <div>
+          <label class="block text-sm mb-1">Token Expiry (seconds)</label>
+          <input type="number" id="sidebar-auth-expiry" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        </div>
+        <div>
+          <label class="block text-sm mb-1">Rate Limit (req/min)</label>
+          <input type="number" id="sidebar-auth-rate-limit" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" />
+        </div>
+        <button onclick="saveAuthSidebarSettings()" class="brand-btn px-4 py-2 rounded-lg w-full">Save</button>
+        <hr class="border-gray-200 dark:border-gray-700" />
+        <button onclick="openEditTableModal('users')" class="brand-outline-btn px-4 py-2 rounded-lg w-full text-sm">Edit User Schema</button>
+      </div>
     </div>
 
     <!-- Main Content -->
@@ -125,7 +154,6 @@
           </span>
           <span id="auth-actions" class="hidden">
             <button onclick="openAddUserModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Add User</button>
-            <button onclick="openAuthSettingsModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">Auth Settings</button>
             <button onclick="openAuthApiModal()" class="px-3 py-1.5 text-sm brand-btn rounded-lg">API</button>
           </span>
           <div class="relative"><button onclick="toggleLogsModal()" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#091747] transition text-xl">🔔</button></div>
@@ -174,6 +202,7 @@
   <div id="toast" class="fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 hidden transition-all"></div>
 
   <!-- ============= MODALS ============= -->
+  <!-- All existing modals (create table, edit table, add row, bulk edit, privacy, webhooks, API, auth API, logs, delete table, rename table, add user, edit user, project modal, delete project modal) are identical to the previous full version. They are included below. -->
   <!-- Create Table Modal -->
   <div id="create-table-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create New Table</h3><input id="new-table-name" placeholder="Table name" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><div id="new-columns" class="space-y-3 mb-3"></div><button onclick="addColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button><p id="create-table-error" class="text-red-500 text-sm mt-2 hidden"></p><div class="flex gap-2 mt-4"><button onclick="createTable()" class="brand-btn px-4 py-2 rounded-lg flex-1">Create</button><button onclick="closeModal('create-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Edit Table Schema Modal -->
@@ -206,8 +235,6 @@
   <div id="project-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 id="project-modal-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Create Project</h3><input type="hidden" id="edit-project-id" /><input id="project-name" placeholder="Project name" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" /><textarea id="project-description" placeholder="Description (optional)" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" rows="3"></textarea><div class="flex gap-2"><button onclick="saveProject()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save</button><button onclick="closeModal('project-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Delete Project Modal -->
   <div id="delete-project-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Project</h3><p class="text-sm mb-3">This action cannot be undone. All data will be permanently deleted.</p><input type="hidden" id="delete-project-id" /><input type="password" id="delete-project-password" placeholder="Enter your account password" class="w-full border p-2 rounded mb-3 dark:bg-[#1A1F24] dark:text-white" /><p id="delete-project-error" class="text-red-500 text-sm hidden"></p><div class="flex gap-2"><button onclick="confirmDeleteProject()" class="bg-red-600 text-white px-4 py-2 rounded-lg flex-1">Delete</button><button onclick="closeModal('delete-project-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
-  <!-- Auth Settings Modal -->
-  <div id="auth-settings-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Auth Settings</h3><div class="space-y-3"><div><label class="block text-sm">Token Expiry (seconds)</label><input type="number" id="auth-settings-expiry" class="w-full border p-2 rounded dark:bg-[#1A1F24] dark:text-white" /></div></div><div class="flex gap-2 mt-4"><button onclick="saveAuthSettings()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save</button><button onclick="closeModal('auth-settings-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
     <script>
     // ================ GLOBALS ================
     const API_BASE = window.location.origin;
@@ -265,7 +292,6 @@
     }
 
     function showAuthMessage(msg) { document.getElementById('auth-message').textContent = msg; }
-
     function showAuth() {
       document.getElementById('auth-container').classList.remove('hidden');
       document.getElementById('app-container').classList.add('hidden');
@@ -306,8 +332,7 @@
     });
 
     async function signUp() {
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      const email = document.getElementById('email').value.trim(), password = document.getElementById('password').value;
       if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
         const res = await fetch(`${API_BASE}/api/platform/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -318,8 +343,7 @@
     }
 
     async function signIn() {
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      const email = document.getElementById('email').value.trim(), password = document.getElementById('password').value;
       if (!email || !password) { showAuthMessage('Please fill in both fields.'); return; }
       try {
         const res = await fetch(`${API_BASE}/api/platform/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
@@ -330,8 +354,7 @@
     }
 
     document.addEventListener('click', function(e) {
-      const menu = document.getElementById('user-menu-dropdown');
-      const btn = document.getElementById('user-menu-button');
+      const menu = document.getElementById('user-menu-dropdown'), btn = document.getElementById('user-menu-button');
       if (!btn.contains(e.target) && !menu.contains(e.target)) menu.classList.remove('show');
     });
     document.getElementById('user-menu-button').addEventListener('click', function(e) {
@@ -355,8 +378,7 @@
 
     function openProjectModal(editId = null) {
       document.getElementById('edit-project-id').value = editId || '';
-      document.getElementById('project-name').value = '';
-      document.getElementById('project-description').value = '';
+      document.getElementById('project-name').value = ''; document.getElementById('project-description').value = '';
       if (editId) {
         fetch(`${API_BASE}/api/platform/projects`, { headers: { 'Authorization': `Bearer ${token}` } })
           .then(r => r.json()).then(projects => {
@@ -370,16 +392,12 @@
       } else { document.getElementById('project-modal-title').textContent = 'Create Project'; }
       document.getElementById('project-modal').classList.add('active');
     }
-
     function editProject(id) { openProjectModal(id); }
 
     async function saveProject() {
-      const id = document.getElementById('edit-project-id').value;
-      const name = document.getElementById('project-name').value.trim();
-      const description = document.getElementById('project-description').value.trim();
+      const id = document.getElementById('edit-project-id').value, name = document.getElementById('project-name').value.trim(), description = document.getElementById('project-description').value.trim();
       if (!name) return showToast('Project name required', true);
-      const url = id ? `${API_BASE}/api/platform/projects/${id}` : `${API_BASE}/api/platform/projects`;
-      const method = id ? 'PUT' : 'POST';
+      const url = id ? `${API_BASE}/api/platform/projects/${id}` : `${API_BASE}/api/platform/projects`, method = id ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ name, description }) });
       if (res.ok) { closeModal('project-modal'); loadProjects(); showToast(id ? 'Project updated' : 'Project created'); }
       else { const err = await res.json(); showToast(err.error || 'Failed', true); }
@@ -405,8 +423,7 @@
     }
 
     async function confirmDeleteProject() {
-      const projectId = document.getElementById('delete-project-id').value;
-      const password = document.getElementById('delete-project-password').value;
+      const projectId = document.getElementById('delete-project-id').value, password = document.getElementById('delete-project-password').value;
       if (!password) { document.getElementById('delete-project-error').textContent = 'Password required'; document.getElementById('delete-project-error').classList.remove('hidden'); return; }
       const res = await fetch(`${API_BASE}/api/platform/projects/${projectId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ password }) });
       if (res.ok) {
@@ -424,11 +441,14 @@
       const projectsActions = document.getElementById('projects-actions'), databaseActions = document.getElementById('database-actions'), authActions = document.getElementById('auth-actions');
       const projectGrid = document.getElementById('project-grid-area'), databaseArea = document.getElementById('database-table-area'), authArea = document.getElementById('auth-table-area');
       const sidebar = document.getElementById('content-sidebar');
+      const authSidebar = document.getElementById('auth-sidebar');
+      const databaseSidebar = document.getElementById('database-sidebar');
 
       navProjects.classList.remove('active'); navDatabase.classList.remove('active'); navAuth.classList.remove('active');
       projectsActions.classList.add('hidden'); databaseActions.classList.add('hidden'); authActions.classList.add('hidden');
       projectGrid.classList.add('hidden'); databaseArea.classList.add('hidden'); authArea.classList.add('hidden');
       sidebar.classList.add('hidden');
+      authSidebar.classList.add('hidden'); databaseSidebar.classList.remove('hidden');
 
       if (view === 'projects') {
         navProjects.classList.add('active'); projectsActions.classList.remove('hidden');
@@ -450,33 +470,39 @@
       } else if (view === 'auth') {
         navAuth.classList.add('active'); authActions.classList.remove('hidden');
         authArea.classList.remove('hidden'); sidebar.classList.remove('hidden');
+        databaseSidebar.classList.add('hidden'); authSidebar.classList.remove('hidden');
         document.getElementById('current-table-name').textContent = 'Authentication';
+        loadAuthSidebarSettings();
         loadUsersTable();
       }
     }
 
-    // ======= AUTH SETTINGS =======
-    function openAuthSettingsModal() {
+    // ======= AUTH SIDEBAR SETTINGS =======
+    async function loadAuthSidebarSettings() {
       if (!activeProjectId) return;
       fetch(`${API_BASE}/api/platform/projects`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json()).then(projects => {
           const proj = projects.find(p => p.id == activeProjectId);
           if (proj && proj.auth_config) {
-            try { const config = JSON.parse(proj.auth_config); document.getElementById('auth-settings-expiry').value = config.token_expiry || 3600; } catch(e) {}
+            try {
+              const config = JSON.parse(proj.auth_config);
+              document.getElementById('sidebar-auth-expiry').value = config.token_expiry || 3600;
+              document.getElementById('sidebar-auth-rate-limit').value = config.rate_limit || 100;
+            } catch(e) {}
           }
         });
-      document.getElementById('auth-settings-modal').classList.add('active');
     }
 
-    async function saveAuthSettings() {
+    async function saveAuthSidebarSettings() {
       if (!activeProjectId) return;
-      const token_expiry = parseInt(document.getElementById('auth-settings-expiry').value) || 3600;
-      const auth_config = { token_expiry };
+      const token_expiry = parseInt(document.getElementById('sidebar-auth-expiry').value) || 3600;
+      const rate_limit = parseInt(document.getElementById('sidebar-auth-rate-limit').value) || 100;
+      const auth_config = { token_expiry, rate_limit };
       const res = await fetch(`${API_BASE}/api/platform/projects/${activeProjectId}/settings`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ auth_config })
       });
-      if (res.ok) { closeModal('auth-settings-modal'); showToast('Auth settings saved'); }
+      if (res.ok) showToast('Auth settings saved');
       else showToast('Failed to save', true);
     }
 
@@ -510,22 +536,9 @@
       else tbody.innerHTML = users.map(u => `<tr class="border dark:border-gray-600"><td class="px-4 py-2 text-sm">${u.id}</td><td class="px-4 py-2 text-sm">${escapeHtml(u.email)}</td>${customCols.map(c => `<td class="px-4 py-2 text-sm">${escapeHtml(u[c.name] ?? '')}</td>`).join('')}<td class="px-4 py-2 text-center"><button onclick="openEditUserModal(${u.id}, '${escapeHtml(u.email)}')" class="text-blue-500 hover:text-blue-700 text-sm mr-2">✏️</button><button onclick="deleteUser(${u.id})" class="text-red-500 hover:text-red-700 text-sm">Delete</button></td></tr>`).join('');
     }
 
-    async function deleteUser(id) {
-      if (!confirm('Delete this user?')) return;
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) { loadUsersTable(); showToast('User deleted'); } else showToast('Failed', true);
-    }
-
+    async function deleteUser(id) { if (!confirm('Delete this user?')) return; const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { loadUsersTable(); showToast('User deleted'); } else showToast('Failed', true); }
     function openAddUserModal() { document.getElementById('new-user-email').value = ''; document.getElementById('new-user-password').value = ''; document.getElementById('add-user-modal').classList.add('active'); }
-
-    async function addUser() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      const email = document.getElementById('new-user-email').value.trim(), password = document.getElementById('new-user-password').value;
-      if (!email || !password) return showToast('Email and password required', true);
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ email, password }) });
-      if (res.ok) { closeModal('add-user-modal'); loadUsersTable(); showToast('User added'); }
-      else { const data = await res.json(); showToast(data.error || 'Failed', true); }
-    }
+    async function addUser() { if (!activeProjectId) return showToast('No project selected', true); const email = document.getElementById('new-user-email').value.trim(), password = document.getElementById('new-user-password').value; if (!email || !password) return showToast('Email and password required', true); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ email, password }) }); if (res.ok) { closeModal('add-user-modal'); loadUsersTable(); showToast('User added'); } else { const data = await res.json(); showToast(data.error || 'Failed', true); } }
 
     function openEditUserModal(id, email) {
       document.getElementById('edit-user-id').value = id; document.getElementById('edit-user-email').value = email; document.getElementById('edit-user-password').value = '';
@@ -553,13 +566,9 @@
     function applyAuthSearch() { loadUsersTable(); }
     function toggleAuthFilterPanel() { const panel = document.getElementById('auth-filter-panel'); panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; if (panel.style.display === 'block') renderAuthFilterConditions(); }
     function renderAuthFilterConditions() {
-      const container = document.getElementById('auth-filter-conditions');
-      const usersMeta = allTables.find(t => t.name === 'users');
-      const columns = usersMeta ? usersMeta.columns.filter(c => c.name !== 'password') : [];
+      const container = document.getElementById('auth-filter-conditions'), usersMeta = allTables.find(t => t.name === 'users'), columns = usersMeta ? usersMeta.columns.filter(c => c.name !== 'password') : [];
       container.innerHTML = authFilters.map((f, i) => {
-        const colMeta = columns.find(c => c.name === f.column);
-        const type = colMeta ? colMeta.type : 'string';
-        const allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string;
+        const colMeta = columns.find(c => c.name === f.column), type = colMeta ? colMeta.type : 'string', allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string;
         return `<div class="flex items-center gap-2"><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterColumn(${i}, this.value)">${columns.map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterOp(${i}, this.value)">${allowedOps.map(o => `<option value="${o}" ${f.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><input value="${f.value}" class="border p-1 rounded text-sm flex-1 dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterValue(${i}, this.value)" /><button onclick="removeAuthFilterCondition(${i})" class="text-red-400 hover:text-red-600">✕</button></div>`;
       }).join('');
     }
@@ -572,104 +581,36 @@
     function clearAllAuthFilters() { authFilters = []; document.getElementById('auth-search-input').value = ''; renderAuthFilterConditions(); loadUsersTable(); }
 
     // ======= TABLE LIST & DATA =======
-    async function loadAllTables() {
-      if (!token || !activeProjectId) return;
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.status === 401) { signOut(); return; }
-      allTables = await res.json(); renderTableList();
-    }
-
-    function renderTableList() {
-      const list = document.getElementById('table-list');
-      list.innerHTML = allTables.map(t => `<li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" onclick="selectTable('${t.name}')"><span class="flex-1 truncate">📄 ${t.name}</span><div class="hidden group-hover:flex items-center space-x-1"><button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Edit schema">✏️</button><button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm" title="Rename">🔤</button><button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm" title="Delete">🗑️</button></div></li>`).join('');
-    }
-
-    function selectTable(name) {
-      selectedTable = name; localStorage.setItem('selectedTable', name);
-      document.getElementById('current-table-name').textContent = name;
-      document.getElementById('no-table-selected').classList.add('hidden');
-      document.getElementById('data-table-container').classList.remove('hidden');
-      document.getElementById('pagination').classList.remove('hidden');
-      document.getElementById('bulk-bar').classList.add('hidden'); selectedRows.clear();
-      const meta = allTables.find(t => t.name === name); currentColumns = meta ? meta.columns : []; currentPage = 1;
-      fetchAndRenderRows(); renderTableList();
-    }
-
-    async function fetchAndRenderRows() {
-      if (!selectedTable || !activeProjectId) return;
-      const limit = rowsPerPage, offset = (currentPage - 1) * limit;
-      let url = `${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}?limit=${limit}&offset=${offset}`;
-      if (sortColumn) url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`;
-      const searchQuery = document.getElementById('search-input').value.trim(); if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-      activeFilters.forEach((f, i) => { url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`; });
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.status === 401) { signOut(); return; }
-      currentRows = await res.json(); totalRows = currentRows.length;
-      renderTable(); renderPagination(); updateBulkBar();
-    }
+    async function loadAllTables() { if (!token || !activeProjectId) return; const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables`, { headers: { 'Authorization': `Bearer ${token}` } }); if (res.status === 401) { signOut(); return; } allTables = await res.json(); renderTableList(); }
+    function renderTableList() { document.getElementById('table-list').innerHTML = allTables.map(t => `<li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" onclick="selectTable('${t.name}')"><span class="flex-1 truncate">📄 ${t.name}</span><div class="hidden group-hover:flex items-center space-x-1"><button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm">✏️</button><button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm">🔤</button><button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm">🗑️</button></div></li>`).join(''); }
+    function selectTable(name) { selectedTable = name; localStorage.setItem('selectedTable', name); document.getElementById('current-table-name').textContent = name; document.getElementById('no-table-selected').classList.add('hidden'); document.getElementById('data-table-container').classList.remove('hidden'); document.getElementById('pagination').classList.remove('hidden'); document.getElementById('bulk-bar').classList.add('hidden'); selectedRows.clear(); const meta = allTables.find(t => t.name === name); currentColumns = meta ? meta.columns : []; currentPage = 1; fetchAndRenderRows(); renderTableList(); }
+    async function fetchAndRenderRows() { if (!selectedTable || !activeProjectId) return; const limit = rowsPerPage, offset = (currentPage - 1) * limit; let url = `${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}?limit=${limit}&offset=${offset}`; if (sortColumn) url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`; const searchQuery = document.getElementById('search-input').value.trim(); if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`; activeFilters.forEach((f, i) => { url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`; }); const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } }); if (res.status === 401) { signOut(); return; } currentRows = await res.json(); totalRows = currentRows.length; renderTable(); renderPagination(); updateBulkBar(); }
 
     function renderPagination() {
-      const totalPages = Math.ceil(totalRows / rowsPerPage);
-      const start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1, end = Math.min(currentPage * rowsPerPage, totalRows);
+      const totalPages = Math.ceil(totalRows / rowsPerPage), start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1, end = Math.min(currentPage * rowsPerPage, totalRows);
       document.getElementById('page-start').textContent = start; document.getElementById('page-end').textContent = end; document.getElementById('total-rows').textContent = totalRows;
       const pageNumbers = document.getElementById('page-numbers'); pageNumbers.innerHTML = '';
-      for (let i = 1; i <= totalPages; i++) {
-        const btn = document.createElement('button'); btn.textContent = i;
-        btn.className = `px-3 py-1 border rounded text-sm ${i === currentPage ? 'bg-[#091747] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`;
-        btn.onclick = () => { currentPage = i; fetchAndRenderRows(); }; pageNumbers.appendChild(btn);
-      }
+      for (let i = 1; i <= totalPages; i++) { const btn = document.createElement('button'); btn.textContent = i; btn.className = `px-3 py-1 border rounded text-sm ${i === currentPage ? 'bg-[#091747] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`; btn.onclick = () => { currentPage = i; fetchAndRenderRows(); }; pageNumbers.appendChild(btn); }
     }
 
     function prevPage() { if (currentPage > 1) { currentPage--; fetchAndRenderRows(); } }
     function nextPage() { if (currentPage < Math.ceil(totalRows / rowsPerPage)) { currentPage++; fetchAndRenderRows(); } }
     function changeRowsPerPage() { rowsPerPage = parseInt(document.getElementById('rows-per-page').value); currentPage = 1; fetchAndRenderRows(); }
-
-    function toggleSelectAll(source) {
-      document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = source.checked; if (source.checked) selectedRows.add(cb.dataset.id); else selectedRows.delete(cb.dataset.id); });
-      updateBulkBar();
-    }
+    function toggleSelectAll(source) { document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = source.checked; if (source.checked) selectedRows.add(cb.dataset.id); else selectedRows.delete(cb.dataset.id); }); updateBulkBar(); }
     function toggleRowSelection(id, checked) { if (checked) selectedRows.add(id); else selectedRows.delete(id); updateBulkBar(); }
-    function updateBulkBar() {
-      const count = selectedRows.size;
-      document.getElementById('selected-count').textContent = count; document.getElementById('total-row-count').textContent = currentRows.length;
-      document.getElementById('bulk-bar').classList.toggle('hidden', count === 0);
-    }
+    function updateBulkBar() { const count = selectedRows.size; document.getElementById('selected-count').textContent = count; document.getElementById('total-row-count').textContent = currentRows.length; document.getElementById('bulk-bar').classList.toggle('hidden', count === 0); }
 
-    async function bulkDelete() {
-      if (!selectedRows.size) return; if (!confirm(`Delete ${selectedRows.size} row(s)?`)) return;
-      const ids = Array.from(selectedRows);
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/bulk/delete`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids }) });
-      if (res.ok) { selectedRows.clear(); fetchAndRenderRows(); showToast('Deleted'); } else { const err = await res.json(); showToast(err.error || 'Failed', true); }
-    }
-
-    async function bulkDuplicate() {
-      if (!selectedRows.size) return;
-      for (const id of Array.from(selectedRows)) {
-        const row = currentRows.find(r => r.id == id); if (!row) continue;
-        const body = {}; currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
-        await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
-      }
-      selectedRows.clear(); fetchAndRenderRows(); showToast('Duplicated');
-    }
-
-    function openBulkEditModal() {
-      if (!selectedRows.size) return;
-      document.getElementById('bulk-edit-column').innerHTML = currentColumns.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-      document.getElementById('bulk-edit-value').value = ''; document.getElementById('bulk-edit-modal').classList.add('active');
-    }
-
-    async function confirmBulkEdit() {
-      const field = document.getElementById('bulk-edit-column').value, value = document.getElementById('bulk-edit-value').value, ids = Array.from(selectedRows);
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/bulk/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids, field, value }) });
-      if (res.ok) { selectedRows.clear(); closeModal('bulk-edit-modal'); fetchAndRenderRows(); showToast('Updated'); } else { const err = await res.json(); showToast(err.error || 'Failed', true); }
-    }
+    async function bulkDelete() { if (!selectedRows.size) return; if (!confirm(`Delete ${selectedRows.size} row(s)?`)) return; const ids = Array.from(selectedRows); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/bulk/delete`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids }) }); if (res.ok) { selectedRows.clear(); fetchAndRenderRows(); showToast('Deleted'); } else { const err = await res.json(); showToast(err.error || 'Failed', true); } }
+    async function bulkDuplicate() { if (!selectedRows.size) return; for (const id of Array.from(selectedRows)) { const row = currentRows.find(r => r.id == id); if (!row) continue; const body = {}; currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; }); await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) }); } selectedRows.clear(); fetchAndRenderRows(); showToast('Duplicated'); }
+    function openBulkEditModal() { if (!selectedRows.size) return; document.getElementById('bulk-edit-column').innerHTML = currentColumns.map(c => `<option value="${c.name}">${c.name}</option>`).join(''); document.getElementById('bulk-edit-value').value = ''; document.getElementById('bulk-edit-modal').classList.add('active'); }
+    async function confirmBulkEdit() { const field = document.getElementById('bulk-edit-column').value, value = document.getElementById('bulk-edit-value').value, ids = Array.from(selectedRows); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/bulk/update`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ids, field, value }) }); if (res.ok) { selectedRows.clear(); closeModal('bulk-edit-modal'); fetchAndRenderRows(); showToast('Updated'); } else { const err = await res.json(); showToast(err.error || 'Failed', true); } }
 
     function renderTable() {
       const thead = document.getElementById('table-head'), tbody = document.getElementById('table-body');
       if (!selectedTable) return;
       const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
       thead.innerHTML = `<tr class="bg-[#091747] text-white text-sm"><th class="px-3 py-3 text-center"><input type="checkbox" class="row-select-all" onchange="toggleSelectAll(this)" /></th><th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider">Actions</th>${allCols.map(c => `<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" onclick="sortTable('${c}')">${c} ${sortColumn === c ? (sortAsc?'▲':'▼') : '⇅'}</th>`).join('')}</tr>`;
-      tbody.innerHTML = currentRows.length === 0 ? `<tr><td colspan="${allCols.length+2}" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No rows yet.</td></tr>` : currentRows.map((row, idx) => `<tr class="${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'} hover:bg-gray-50 dark:hover:bg-gray-700 transition"><td class="px-3 py-3 text-center"><input type="checkbox" class="row-checkbox" data-id="${row.id}" ${selectedRows.has(row.id.toString()) ? 'checked' : ''} onchange="toggleRowSelection('${row.id}', this.checked)" /></td><td class="px-3 py-3 relative"><button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-lg">⋯</button><div id="actions-${row.id}" class="action-dropdown" style="min-width:100px;"><button onclick="duplicateRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition">Duplicate</button><button onclick="deleteRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600 transition">Delete</button></div></td>${allCols.map(c => `<td class="px-4 py-3 text-sm cursor-pointer" onclick="showEditPopup(this,'${row.id}','${c}')">${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('');
+      tbody.innerHTML = currentRows.length === 0 ? `<tr><td colspan="${allCols.length+2}" class="px-4 py-6 text-center text-[#57636C] dark:text-[#95A1AC]">No rows yet.</td></tr>` : currentRows.map((row, idx) => `<tr class="${idx % 2 === 0 ? 'bg-[#F1F4F8] dark:bg-[#1A1F24]' : 'bg-white dark:bg-[#101213]'} hover:bg-gray-50 dark:hover:bg-gray-700 transition"><td class="px-3 py-3 text-center"><input type="checkbox" class="row-checkbox" data-id="${row.id}" ${selectedRows.has(row.id.toString()) ? 'checked' : ''} onchange="toggleRowSelection('${row.id}', this.checked)" /></td><td class="px-3 py-3 relative"><button onclick="toggleActionsDropdown(event,'${row.id}')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-lg">⋯</button><div id="actions-${row.id}" class="action-dropdown"><button onclick="duplicateRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">Duplicate</button><button onclick="deleteRow('${row.id}')" class="block w-full text-left px-3 py-1 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600">Delete</button></div></td>${allCols.map(c => `<td class="px-4 py-3 text-sm cursor-pointer" onclick="showEditPopup(this,'${row.id}','${c}')">${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('');
     }
 
     function showEditPopup(cell, rowId, colName) {
@@ -695,34 +636,13 @@
       document.querySelectorAll('.edit-popup').forEach(p => p.remove());
     }
 
-    function toggleActionsDropdown(e, rowId) {
-      e.stopPropagation();
-      const existing = document.querySelector('.action-dropdown.show'); if (existing) existing.classList.remove('show');
-      const dropdown = document.getElementById(`actions-${rowId}`); if (!dropdown) return;
-      const btn = e.currentTarget, rect = btn.getBoundingClientRect();
-      dropdown.style.position = 'fixed'; dropdown.style.left = rect.right + 'px'; dropdown.style.top = rect.bottom + 'px'; dropdown.style.zIndex = '100';
-      document.body.appendChild(dropdown); dropdown.classList.toggle('show');
-      if (!dropdown.classList.contains('show')) dropdown.remove();
-      else { const handler = (ev) => { if (!dropdown.contains(ev.target) && ev.target !== btn) { dropdown.classList.remove('show'); dropdown.remove(); document.removeEventListener('click', handler); } }; setTimeout(() => document.addEventListener('click', handler), 0); }
-    }
-
-    async function duplicateRow(rowId) {
-      const row = currentRows.find(r => r.id == rowId); if (!row) return;
-      const body = {}; currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; });
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
-      if (res.ok) { fetchAndRenderRows(); showToast('Row duplicated'); } else { const err = await res.json(); showToast(err.error || 'Duplicate failed', true); }
-    }
-
-    async function deleteRow(id) {
-      if (!confirm('Delete this row permanently?')) return;
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) { fetchAndRenderRows(); showToast('Row deleted'); } else showToast('Delete failed', true);
-    }
-
+    function toggleActionsDropdown(e, rowId) { e.stopPropagation(); const existing = document.querySelector('.action-dropdown.show'); if (existing) existing.classList.remove('show'); const dropdown = document.getElementById(`actions-${rowId}`); if (!dropdown) return; const btn = e.currentTarget, rect = btn.getBoundingClientRect(); dropdown.style.position = 'fixed'; dropdown.style.left = rect.right + 'px'; dropdown.style.top = rect.bottom + 'px'; dropdown.style.zIndex = '100'; document.body.appendChild(dropdown); dropdown.classList.toggle('show'); if (!dropdown.classList.contains('show')) dropdown.remove(); else { const handler = (ev) => { if (!dropdown.contains(ev.target) && ev.target !== btn) { dropdown.classList.remove('show'); dropdown.remove(); document.removeEventListener('click', handler); } }; setTimeout(() => document.addEventListener('click', handler), 0); } }
+    async function duplicateRow(rowId) { const row = currentRows.find(r => r.id == rowId); if (!row) return; const body = {}; currentColumns.forEach(c => { if (row[c.name] !== undefined) body[c.name] = row[c.name]; }); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) }); if (res.ok) { fetchAndRenderRows(); showToast('Row duplicated'); } else { const err = await res.json(); showToast(err.error || 'Duplicate failed', true); } }
+    async function deleteRow(id) { if (!confirm('Delete this row permanently?')) return; const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { fetchAndRenderRows(); showToast('Row deleted'); } else showToast('Delete failed', true); }
     function sortTable(col) { if (sortColumn === col) sortAsc = !sortAsc; else { sortColumn = col; sortAsc = true; } fetchAndRenderRows(); }
     function applySearch() { currentPage = 1; fetchAndRenderRows(); }
 
-    function toggleFilterPanel() { const panel = document.getElementById('filter-panel'); if (panel.style.display === 'block') panel.style.display = 'none'; else { panel.style.display = 'block'; renderFilterConditions(); } }
+    function toggleFilterPanel() { const panel = document.getElementById('filter-panel'); panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; if (panel.style.display === 'block') renderFilterConditions(); }
     function renderFilterConditions() {
       const container = document.getElementById('filter-conditions');
       container.innerHTML = activeFilters.map((f, i) => {
@@ -741,83 +661,26 @@
     // ======= TABLE CREATE / EDIT / DELETE =======
     function openCreateTableModal() { document.getElementById('new-table-name').value = ''; document.getElementById('new-columns').innerHTML = ''; document.getElementById('create-table-error').classList.add('hidden'); addColumnField(); document.getElementById('create-table-modal').classList.add('active'); }
     function addColumnField() { document.getElementById('new-columns').innerHTML += `<div class="flex items-center gap-2"><input placeholder="Column name" class="column-name w-full border p-2 rounded-lg text-sm focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><select class="column-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select><input placeholder="Default" class="column-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button></div>`; }
-    async function createTable() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      const name = document.getElementById('new-table-name').value.trim(), nameInputs = document.querySelectorAll('.column-name'), typeSelects = document.querySelectorAll('.column-type'), defaultInputs = document.querySelectorAll('.column-default'), cols = [];
-      for (let i = 0; i < nameInputs.length; i++) { const cn = nameInputs[i].value.trim(); if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value }); }
-      if (!name || cols.length === 0) { document.getElementById('create-table-error').textContent = 'Name and at least one column required.'; document.getElementById('create-table-error').classList.remove('hidden'); return; }
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ name, columns: cols }) });
-      const data = await res.json();
-      if (res.ok) { closeModal('create-table-modal'); loadAllTables(); selectTable(data.name); showToast(`Table "${data.name}" created.`); }
-      else { document.getElementById('create-table-error').textContent = data.error || 'Creation failed'; document.getElementById('create-table-error').classList.remove('hidden'); }
-    }
+    async function createTable() { if (!activeProjectId) return showToast('No project selected', true); const name = document.getElementById('new-table-name').value.trim(), nameInputs = document.querySelectorAll('.column-name'), typeSelects = document.querySelectorAll('.column-type'), defaultInputs = document.querySelectorAll('.column-default'), cols = []; for (let i = 0; i < nameInputs.length; i++) { const cn = nameInputs[i].value.trim(); if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value }); } if (!name || cols.length === 0) { document.getElementById('create-table-error').textContent = 'Name and at least one column required.'; document.getElementById('create-table-error').classList.remove('hidden'); return; } const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ name, columns: cols }) }); const data = await res.json(); if (res.ok) { closeModal('create-table-modal'); loadAllTables(); selectTable(data.name); showToast(`Table "${data.name}" created.`); } else { document.getElementById('create-table-error').textContent = data.error || 'Creation failed'; document.getElementById('create-table-error').classList.remove('hidden'); } }
 
     function openDeleteTableModal(name) { tableToDelete = name; document.getElementById('delete-table-name').textContent = name; document.getElementById('delete-confirm-input').value = ''; document.getElementById('delete-table-error').classList.add('hidden'); document.getElementById('delete-table-modal').classList.add('active'); }
     function copyTableName() { navigator.clipboard.writeText(tableToDelete); showToast('Name copied'); }
-    async function confirmDeleteTable() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      if (document.getElementById('delete-confirm-input').value.trim() !== tableToDelete) { document.getElementById('delete-table-error').textContent = 'Name does not match.'; document.getElementById('delete-table-error').classList.remove('hidden'); return; }
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${tableToDelete}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) { closeModal('delete-table-modal'); if (selectedTable === tableToDelete) { selectedTable = null; localStorage.removeItem('selectedTable'); } loadAllTables(); showToast('Table deleted'); }
-      else { const err = await res.json(); document.getElementById('delete-table-error').textContent = err.error || 'Deletion failed'; document.getElementById('delete-table-error').classList.remove('hidden'); }
-    }
+    async function confirmDeleteTable() { if (!activeProjectId) return showToast('No project selected', true); if (document.getElementById('delete-confirm-input').value.trim() !== tableToDelete) { document.getElementById('delete-table-error').textContent = 'Name does not match.'; document.getElementById('delete-table-error').classList.remove('hidden'); return; } const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${tableToDelete}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { closeModal('delete-table-modal'); if (selectedTable === tableToDelete) { selectedTable = null; localStorage.removeItem('selectedTable'); } loadAllTables(); showToast('Table deleted'); } else { const err = await res.json(); document.getElementById('delete-table-error').textContent = err.error || 'Deletion failed'; document.getElementById('delete-table-error').classList.remove('hidden'); } }
     function openRenameTableModal(name) { tableToRename = name; document.getElementById('rename-table-input').value = name; document.getElementById('rename-table-error').classList.add('hidden'); document.getElementById('rename-table-modal').classList.add('active'); }
     async function confirmRenameTable() { if (!activeProjectId) return showToast('No project selected', true); const newName = document.getElementById('rename-table-input').value.trim(); if (!newName || newName === tableToRename) { document.getElementById('rename-table-error').textContent = 'Enter a different name.'; document.getElementById('rename-table-error').classList.remove('hidden'); return; } showToast('Rename not implemented via API yet', true); }
 
-    function openEditTableModal(name) {
-      const table = allTables.find(t => t.name === (name || selectedTable)); if (!table) return;
-      document.getElementById('edit-table-name').textContent = table.name;
-      const container = document.getElementById('edit-columns'), colsToEdit = table.columns.filter(c => c.name !== 'password');
-      container.innerHTML = colsToEdit.map(c => `<div class="flex items-center gap-2"><input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">${COLUMN_TYPES.map(t => `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}</select><input value="${c.default || ''}" placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />${(table.name === 'users' && c.name === 'email') ? '<span class="text-gray-400 text-sm">required</span>' : `<button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>`}</div>`).join('');
-      document.getElementById('edit-table-modal').classList.add('active');
-    }
+    function openEditTableModal(name) { const table = allTables.find(t => t.name === (name || selectedTable)); if (!table) return; document.getElementById('edit-table-name').textContent = table.name; const container = document.getElementById('edit-columns'), colsToEdit = table.columns.filter(c => c.name !== 'password'); container.innerHTML = colsToEdit.map(c => `<div class="flex items-center gap-2"><input value="${c.name}" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">${COLUMN_TYPES.map(t => `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}</select><input value="${c.default || ''}" placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" />${(table.name === 'users' && c.name === 'email') ? '<span class="text-gray-400 text-sm">required</span>' : `<button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button>`}</div>`).join(''); document.getElementById('edit-table-modal').classList.add('active'); }
     function addEditColumnField() { document.getElementById('edit-columns').innerHTML += `<div class="flex items-center gap-2"><input placeholder="Column name" class="edit-col-name flex-1 border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><select class="edit-col-type border p-2 rounded-lg text-sm dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" style="border-color:#324380;">${COLUMN_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select><input placeholder="Default" class="edit-col-default border p-2 rounded-lg text-sm w-24 dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" /><button onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-600 text-xl">×</button></div>`; }
-    async function saveTableSchema() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      const name = document.getElementById('edit-table-name').textContent, nameInputs = document.querySelectorAll('.edit-col-name'), typeSelects = document.querySelectorAll('.edit-col-type'), defaultInputs = document.querySelectorAll('.edit-col-default'), cols = [];
-      for (let i = 0; i < nameInputs.length; i++) { const cn = nameInputs[i].value.trim(); if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value }); }
-      if (!cols.length) return showToast('At least one column required', true);
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${name}/schema`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ columns: cols }) });
-      if (res.ok) { closeModal('edit-table-modal'); await loadAllTables(); if (selectedTable === name) selectTable(name); showToast('Schema updated'); }
-      else { const err = await res.json(); showToast(err.error || 'Update failed', true); }
-    }
+    async function saveTableSchema() { if (!activeProjectId) return showToast('No project selected', true); const name = document.getElementById('edit-table-name').textContent, nameInputs = document.querySelectorAll('.edit-col-name'), typeSelects = document.querySelectorAll('.edit-col-type'), defaultInputs = document.querySelectorAll('.edit-col-default'), cols = []; for (let i = 0; i < nameInputs.length; i++) { const cn = nameInputs[i].value.trim(); if (cn) cols.push({ name: cn, type: typeSelects[i].value, default: defaultInputs[i].value }); } if (!cols.length) return showToast('At least one column required', true); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${name}/schema`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ columns: cols }) }); if (res.ok) { closeModal('edit-table-modal'); await loadAllTables(); if (selectedTable === name) selectTable(name); showToast('Schema updated'); } else { const err = await res.json(); showToast(err.error || 'Update failed', true); } }
 
-    function openAddRowModal() {
-      if (!selectedTable) { showToast('Please select a table first', true); return; }
-      document.getElementById('add-row-fields').innerHTML = currentColumns.filter(c => c.name !== 'password').map(c => { const type = c.type || 'string', def = c.default || ''; let inputHtml = ''; if (['int','int8','integer','float','number'].includes(type)) inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${def}" />`; else if (['date','datetime'].includes(type)) inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${def}" />`; else if (type === 'boolean') inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white"><option value="true" ${def === 'true' ? 'selected' : ''}>true</option><option value="false" ${def === 'false' ? 'selected' : ''}>false</option></select>`; else inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${escapeHtml(def)}" />`; return `<div><label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">${c.name}</label>${inputHtml}</div>`; }).join('');
-      document.getElementById('add-row-modal').classList.add('active');
-    }
-
-    async function confirmAddRow() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      const body = {}; currentColumns.forEach(c => { const el = document.getElementById(`modal-add-${c.name}`); if (el) body[c.name] = el.value; });
-      const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
-      if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); } else { const err = await res.json(); showToast(err.error || 'Add failed', true); }
-    }
+    function openAddRowModal() { if (!selectedTable) { showToast('Please select a table first', true); return; } document.getElementById('add-row-fields').innerHTML = currentColumns.filter(c => c.name !== 'password').map(c => { const type = c.type || 'string', def = c.default || ''; let inputHtml = ''; if (['int','int8','integer','float','number'].includes(type)) inputHtml = `<input id="modal-add-${c.name}" type="number" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${def}" />`; else if (['date','datetime'].includes(type)) inputHtml = `<input id="modal-add-${c.name}" type="date" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${def}" />`; else if (type === 'boolean') inputHtml = `<select id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white"><option value="true" ${def === 'true' ? 'selected' : ''}>true</option><option value="false" ${def === 'false' ? 'selected' : ''}>false</option></select>`; else inputHtml = `<input id="modal-add-${c.name}" class="w-full border p-2 rounded-lg focus:ring-2 focus:ring-[#091747] outline-none dark:bg-[#1A1F24] dark:border-gray-600 dark:text-white" value="${escapeHtml(def)}" />`; return `<div><label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">${c.name}</label>${inputHtml}</div>`; }).join(''); document.getElementById('add-row-modal').classList.add('active'); }
+    async function confirmAddRow() { if (!activeProjectId) return showToast('No project selected', true); const body = {}; currentColumns.forEach(c => { const el = document.getElementById(`modal-add-${c.name}`); if (el) body[c.name] = el.value; }); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) }); if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); } else { const err = await res.json(); showToast(err.error || 'Add failed', true); } }
 
     // ======= PRIVACY =======
     function getAuthColumns() { const base = ['Auth.ID', 'Auth.Email']; const usersMeta = allTables.find(t => t.name === 'users'); if (usersMeta) usersMeta.columns.forEach(c => { if (c.name !== 'email' && c.name !== 'id' && c.name !== 'password') base.push(`Auth.${c.name}`); }); return base; }
+    function openPrivacyModal() { if (!selectedTable) return; document.getElementById('privacy-table-name').textContent = selectedTable; const table = allTables.find(t => t.name === selectedTable), priv = table?.privacy || {}; privacyRules = []; ['read','write','update','delete'].forEach(op => { if (priv[op]) priv[op].split(' AND ').forEach(condition => { const parts = condition.split(' '), col = parts[0] || '', opVal = parts[1] || 'eq'; let ref = '', val = ''; const refMatch = condition.match(/^([^ ]+)\s+([^ ]+)\s+\{([^}]+)\}\s*(.*)/); if (refMatch) { ref = refMatch[3]; val = refMatch[4]; } else { val = parts.slice(2).join(' '); if (val === '@user_id') ref = 'Auth.ID'; else if (val === '@user_email') ref = 'Auth.Email'; } if (!privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === ref && r.values === val)) privacyRules.push({ column: col, operator: opVal, reference: ref, values: val, columns: { read: [], write: [], update: [], delete: [] } }); }); }); const colPerms = table?.column_permissions || {}; privacyRules.forEach(rule => { rule.columns = { read: colPerms.read ? [...colPerms.read] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: colPerms.write ? [...colPerms.write] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: colPerms.update ? [...colPerms.update] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: colPerms.delete ? [...colPerms.delete] : [] }; }); if (!privacyRules.length) privacyRules.push({ column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id', operator: 'eq', reference: 'Auth.ID', values: '', columns: { read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: [] } }); renderPrivacyCards(); document.getElementById('privacy-modal').classList.add('active'); }
 
-    function openPrivacyModal() {
-      if (!selectedTable) return; document.getElementById('privacy-table-name').textContent = selectedTable;
-      const table = allTables.find(t => t.name === selectedTable), priv = table?.privacy || {}; privacyRules = [];
-      ['read','write','update','delete'].forEach(op => { if (priv[op]) priv[op].split(' AND ').forEach(condition => { const parts = condition.split(' '), col = parts[0] || '', opVal = parts[1] || 'eq'; let ref = '', val = ''; const refMatch = condition.match(/^([^ ]+)\s+([^ ]+)\s+\{([^}]+)\}\s*(.*)/); if (refMatch) { ref = refMatch[3]; val = refMatch[4]; } else { val = parts.slice(2).join(' '); if (val === '@user_id') ref = 'Auth.ID'; else if (val === '@user_email') ref = 'Auth.Email'; } if (!privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === ref && r.values === val)) privacyRules.push({ column: col, operator: opVal, reference: ref, values: val, columns: { read: [], write: [], update: [], delete: [] } }); }); });
-      const colPerms = table?.column_permissions || {}; privacyRules.forEach(rule => { rule.columns = { read: colPerms.read ? [...colPerms.read] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: colPerms.write ? [...colPerms.write] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: colPerms.update ? [...colPerms.update] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: colPerms.delete ? [...colPerms.delete] : [] }; });
-      if (!privacyRules.length) privacyRules.push({ column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id', operator: 'eq', reference: 'Auth.ID', values: '', columns: { read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: [] } });
-      renderPrivacyCards(); document.getElementById('privacy-modal').classList.add('active');
-    }
-
-    function renderPrivacyCards() {
-      const container = document.getElementById('privacy-rules-container'), allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)];
-      const authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join('');
-      const dbOpts = allTables.map(t => t.columns.filter(c => c.name !== 'password').map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('')).join('');
-      const referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`;
-      container.innerHTML = privacyRules.map((rule, idx) => {
-        const showValues = rule.reference && rule.reference.includes('.'), allRead = allCols.every(c => rule.columns.read.includes(c)), allWrite = allCols.every(c => rule.columns.write.includes(c)), allUpdate = allCols.every(c => rule.columns.update.includes(c)), allDelete = allCols.every(c => rule.columns.delete.includes(c));
-        return `<div class="privacy-rule-card"><div class="flex flex-wrap items-center gap-2 mb-3"><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyColumn(${idx}, this.value)">${allCols.map(c => `<option value="${c}" ${rule.column === c ? 'selected' : ''}>${c}</option>`).join('')}</select><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOperator(${idx}, this.value)">${OPERATORS.map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}</select>${showValues ? `<input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" value="${rule.values || ''}" placeholder="Specific Values (optional)" onchange="updatePrivacyValues(${idx}, this.value)" /><small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>` : ''}<button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button></div><table class="mini-perms-table"><thead><tr><th>Column</th><th>Read <input type="checkbox" onchange="checkAllPerms(this, 'read', ${idx})" ${allRead ? 'checked' : ''}></th><th>Write <input type="checkbox" onchange="checkAllPerms(this, 'write', ${idx})" ${allWrite ? 'checked' : ''}></th><th>Update <input type="checkbox" onchange="checkAllPerms(this, 'update', ${idx})" ${allUpdate ? 'checked' : ''}></th><th class="opacity-70">Delete <input type="checkbox" onchange="checkAllPerms(this, 'delete', ${idx})" ${allDelete ? 'checked' : ''}></th></tr></thead><tbody>${allCols.map(c => `<tr><td>${c}</td><td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td><td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td></tr>`).join('')}</tbody></table></div>`;
-      }).join('');
-    }
-
+    function renderPrivacyCards() { const container = document.getElementById('privacy-rules-container'), allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)], authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join(''), dbOpts = allTables.map(t => t.columns.filter(c => c.name !== 'password').map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('')).join(''), referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`; container.innerHTML = privacyRules.map((rule, idx) => { const showValues = rule.reference && rule.reference.includes('.'), allRead = allCols.every(c => rule.columns.read.includes(c)), allWrite = allCols.every(c => rule.columns.write.includes(c)), allUpdate = allCols.every(c => rule.columns.update.includes(c)), allDelete = allCols.every(c => rule.columns.delete.includes(c)); return `<div class="privacy-rule-card"><div class="flex flex-wrap items-center gap-2 mb-3"><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyColumn(${idx}, this.value)">${allCols.map(c => `<option value="${c}" ${rule.column === c ? 'selected' : ''}>${c}</option>`).join('')}</select><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOperator(${idx}, this.value)">${OPERATORS.map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><select class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}</select>${showValues ? `<input class="border p-1 rounded text-sm dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" value="${rule.values || ''}" placeholder="Specific Values (optional)" onchange="updatePrivacyValues(${idx}, this.value)" /><small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: admin,user,manager</small>` : ''}<button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button></div><table class="mini-perms-table"><thead><tr><th>Column</th><th>Read</th><th>Write</th><th>Update</th><th class="opacity-70">Delete</th></tr></thead><tbody>${allCols.map(c => `<tr><td>${c}</td><td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td><td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td></tr>`).join('')}</tbody></table></div>`; }).join(''); }
     function checkAllPerms(cb, op, idx) { const allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)]; allCols.forEach(col => toggleRuleColumn(col, op, idx, cb.checked)); renderPrivacyCards(); }
     function addPrivacyRuleCard() { privacyRules.push({ column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id', operator: 'eq', reference: 'Auth.ID', values: '', columns: { read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: [] } }); renderPrivacyCards(); }
     function toggleRuleColumn(col, op, idx, checked) { const arr = privacyRules[idx].columns[op]; if (checked) { if (!arr.includes(col)) arr.push(col); } else privacyRules[idx].columns[op] = arr.filter(c => c !== col); }
@@ -827,17 +690,9 @@
     function updatePrivacyValues(idx, val) { privacyRules[idx].values = val; }
     function deletePrivacyRule(idx) { privacyRules.splice(idx, 1); renderPrivacyCards(); }
 
-    async function savePrivacyRules() {
-      if (!activeProjectId) return showToast('No project selected', true);
-      const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } };
-      ['read','write','update','delete'].forEach(op => { payload[op] = privacyRules.filter(r => r.columns[op].length > 0).map(r => { let valuePart; if (r.reference === 'Auth.ID') valuePart = `{Auth.ID} @user_id`; else if (r.reference === 'Auth.Email') valuePart = `{Auth.Email} @user_email`; else if (r.reference?.includes('.')) valuePart = `{${r.reference}} ${r.values || ''}`; else if (r.reference) valuePart = `{${r.reference}} ${r.values || ''}`; else valuePart = r.values || ''; return valuePart ? `${r.column} ${r.operator} ${valuePart}` : ''; }).filter(Boolean).join(' AND '); });
-      const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() }; privacyRules.forEach(rule => { ['read','write','update','delete'].forEach(op => rule.columns[op].forEach(c => globalCols[op].add(c))); });
-      payload.column_permissions = { read: Array.from(globalCols.read), write: Array.from(globalCols.write), update: Array.from(globalCols.update), delete: Array.from(globalCols.delete) };
-      await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${selectedTable}/privacy`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) });
-      closeModal('privacy-modal'); loadAllTables(); showToast('Privacy rules saved');
-    }
+    async function savePrivacyRules() { if (!activeProjectId) return showToast('No project selected', true); const payload = { read: '', write: '', update: '', delete: '', column_permissions: { read: [], write: [], update: [], delete: [] } }; ['read','write','update','delete'].forEach(op => { payload[op] = privacyRules.filter(r => r.columns[op].length > 0).map(r => { let valuePart; if (r.reference === 'Auth.ID') valuePart = `{Auth.ID} @user_id`; else if (r.reference === 'Auth.Email') valuePart = `{Auth.Email} @user_email`; else if (r.reference?.includes('.')) valuePart = `{${r.reference}} ${r.values || ''}`; else if (r.reference) valuePart = `{${r.reference}} ${r.values || ''}`; else valuePart = r.values || ''; return valuePart ? `${r.column} ${r.operator} ${valuePart}` : ''; }).filter(Boolean).join(' AND '); }); const globalCols = { read: new Set(), write: new Set(), update: new Set(), delete: new Set() }; privacyRules.forEach(rule => { ['read','write','update','delete'].forEach(op => rule.columns[op].forEach(c => globalCols[op].add(c))); }); payload.column_permissions = { read: Array.from(globalCols.read), write: Array.from(globalCols.write), update: Array.from(globalCols.update), delete: Array.from(globalCols.delete) }; await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/${selectedTable}/privacy`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload) }); closeModal('privacy-modal'); loadAllTables(); showToast('Privacy rules saved'); }
 
-    // ======= API DOCS =======
+    // ======= API DOCS (redesigned) =======
     async function toggleApiToken() { if (!anonKeyValue || anonKeyValue === '...') { const res = await fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); anonKeyValue = data.anonKey || ''; adminKeyValue = data.adminKey || ''; } openApiModal(); }
 
     function openApiModal() {
@@ -851,26 +706,23 @@
       ];
       const keyOpts = []; if (anonKeyValue !== '...') keyOpts.push(`<option value="anon">Anon key</option>`); if (adminKeyValue !== '...') keyOpts.push(`<option value="admin">Admin key</option>`);
       const keySel = keyOpts.length ? `<select id="api-key-selector" onchange="updateApiSnippets()" class="text-xs border border-[#324380] rounded px-2 py-1 dark:bg-[#1A1F24] dark:text-white">${keyOpts.join('')}</select>` : '<span class="text-xs text-gray-500">Loading keys…</span>';
-      document.getElementById('api-content').innerHTML = `<div class="flex items-center gap-2 mb-4"><span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>${keySel}<button onclick="toggleApiToken()" class="text-xs brand-btn px-2 py-1 rounded">Refresh</button></div><div class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-xs space-y-1 mb-4"><p class="font-medium">Authentication Headers</p><p><code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">x-api-key: &lt;anon_key&gt;</code> – public access (respects Privacy/RLS)</p><p><code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">x-api-key: &lt;admin_key&gt;</code> – full access</p><p>Optional: <code class="bg-gray-200 dark:bg-gray-700 px-1 rounded">Authorization: Bearer &lt;user_token&gt;</code> – user identity for Privacy</p></div><div class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-xs space-y-1 mb-4"><p class="font-medium">Filtering & Pagination</p><p><code>?filter[0][column]=city&filter[0][operator]=eq&filter[0][value]=NYC</code></p><p><code>&sort=column&order=asc&limit=10&offset=0</code></p><p><code>&search=term</code></p></div>` + methods.map(m => `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${m.method==='GET'?'bg-green-100 text-green-800':m.method==='POST'?'bg-blue-100 text-blue-800':m.method==='PUT'?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-800'}">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">${m.desc}</p><div class="text-xs mb-2"><p class="font-medium">Request Headers:</p><code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded">x-api-key: &lt;your_key&gt;</code>${m.method!=='GET'?'<code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded mt-1">Content-Type: application/json</code>':''}</div><div class="text-xs mb-2"><p class="font-medium">Response:</p><code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded">${m.response}</code></div><details class="mb-2"><summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="curl-${m.method}">...</code><button onclick="copyText(document.getElementById('curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details><details><summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="node-${m.method}">...</code><button onclick="copyText(document.getElementById('node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details></div>`).join('');
+      document.getElementById('api-content').innerHTML = `<div class="flex items-center gap-2 mb-4"><span class="text-sm text-[#57636C] dark:text-[#95A1AC]">API Key:</span>${keySel}<button onclick="toggleApiToken()" class="text-xs brand-btn px-2 py-1 rounded">Refresh</button></div><div class="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-xs space-y-1 mb-4"><p class="font-medium">Authentication</p><p><code>x-api-key: &lt;key&gt;</code> – anon (public) or admin (full access)</p><p>Optional: <code>Authorization: Bearer &lt;token&gt;</code> – user identity for Privacy (RLS)</p></div>` + methods.map(m => `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-3"><span class="px-2 py-1 text-xs font-bold rounded ${m.method==='GET'?'bg-green-100 text-green-800':m.method==='POST'?'bg-blue-100 text-blue-800':m.method==='PUT'?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-800'}">${m.method}</span><code class="text-sm font-mono">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p><div class="api-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">📋 Parameters</div><table class="api-param-table w-full hidden"><thead><tr><th>Parameter</th><th>Type</th><th>Example</th><th>Description</th></tr></thead><tbody>${m.method==='GET'?`<tr><td>filter[0][column]</td><td>string</td><td>city</td><td>Column to filter</td></tr><tr><td>filter[0][operator]</td><td>string</td><td>eq</td><td>Operator (eq, neq, gt, lt, gte, lte, contains, not_contains)</td></tr><tr><td>filter[0][value]</td><td>string</td><td>NYC</td><td>Value to compare</td></tr><tr><td>sort</td><td>string</td><td>city</td><td>Column to sort</td></tr><tr><td>order</td><td>string</td><td>asc</td><td>Sort direction (asc, desc)</td></tr><tr><td>limit</td><td>number</td><td>10</td><td>Number of rows</td></tr><tr><td>offset</td><td>number</td><td>0</td><td>Pagination offset</td></tr><tr><td>search</td><td>string</td><td>term</td><td>Global search</td></tr>`:`<tr><td>request body</td><td>object</td><td>${JSON.stringify(exampleFields)}</td><td>Fields to insert/update</td></tr>`}</tbody></table><div class="api-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">📦 Response</div><div class="hidden"><p class="text-sm font-medium response-200">200 OK</p><pre class="code-block"><code>${escapeHtml(m.response)}</code></pre></div><details class="mt-2"><summary class="text-sm cursor-pointer">cURL</summary><pre class="code-block"><code id="curl-${m.method}">...</code><button onclick="copyText(document.getElementById('curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details><details><summary class="text-sm cursor-pointer">Node.js</summary><pre class="code-block"><code id="node-${m.method}">...</code><button onclick="copyText(document.getElementById('node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details></div>`).join('');
       updateApiSnippets(); document.getElementById('api-modal').classList.add('active');
     }
 
-    function updateApiSnippets() {
-      const keyEl = document.getElementById('api-key-selector'); let keyHeader = '-H "x-api-key: YOUR_KEY"', tokenDisplay = 'YOUR_KEY'; if (keyEl) { const sel = keyEl.value; if (sel === 'anon') { keyHeader = `-H "x-api-key: ${anonKeyValue}"`; tokenDisplay = anonKeyValue; } else if (sel === 'admin') { keyHeader = `-H "x-api-key: ${adminKeyValue}"`; tokenDisplay = adminKeyValue; } }
-      const firstCol = currentColumns[0]?.name || 'id', base = API_BASE, methods = [{ method: 'GET', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'POST', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'PUT', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` },{ method: 'DELETE', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` }], exampleFields = {}; currentColumns.forEach(c => exampleFields[c.name] = 'value');
-      methods.forEach(m => { const curlEl = document.getElementById(`curl-${m.method}`), nodeEl = document.getElementById(`node-${m.method}`); if (!curlEl || !nodeEl) return; if (m.method === 'GET') { curlEl.textContent = `curl "${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc&limit=10&offset=0" \\\n  ${keyHeader}`; nodeEl.textContent = `const res = await fetch('${base}${m.url}?filter[${firstCol}]=value&sort=${firstCol}&order=desc', {\n  headers: { 'x-api-key': '${tokenDisplay}' }\n});\nconst data = await res.json();`; } else { curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  ${keyHeader} \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'x-api-key': '${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify(${JSON.stringify(exampleFields)})\n});\nconst data = await res.json();`; } });
-    }
+    function updateApiSnippets() { const keyEl = document.getElementById('api-key-selector'); let keyHeader = '-H "x-api-key: YOUR_KEY"', tokenDisplay = 'YOUR_KEY'; if (keyEl) { if (keyEl.value === 'anon') { keyHeader = `-H "x-api-key: ${anonKeyValue}"`; tokenDisplay = anonKeyValue; } else if (keyEl.value === 'admin') { keyHeader = `-H "x-api-key: ${adminKeyValue}"`; tokenDisplay = adminKeyValue; } } const base = API_BASE, methods = [{ method: 'GET', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'POST', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'PUT', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` },{ method: 'DELETE', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` }], exampleFields = {}; currentColumns.forEach(c => exampleFields[c.name] = 'value'); methods.forEach(m => { const curlEl = document.getElementById(`curl-${m.method}`), nodeEl = document.getElementById(`node-${m.method}`); if (!curlEl || !nodeEl) return; if (m.method === 'GET') { curlEl.textContent = `curl "${base}${m.url}?sort=id&order=desc&limit=10&offset=0" \\\n  ${keyHeader}`; nodeEl.textContent = `const res = await fetch('${base}${m.url}?sort=id&order=desc&limit=10', {\n  headers: { 'x-api-key': '${tokenDisplay}' }\n});\nconst data = await res.json();`; } else { curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  ${keyHeader} \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: '${m.method}',\n  headers: { 'x-api-key': '${tokenDisplay}', 'Content-Type': 'application/json' },\n  body: JSON.stringify(${JSON.stringify(exampleFields)})\n});\nconst data = await res.json();`; } }); }
 
     function openAuthApiModal() {
-      const base = API_BASE, methods = [{ method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new user', body: '{"email":"user@example.com","password":"password"}', response: '{"id":1,"email":"user@example.com"}' },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login and receive tokens', body: '{"email":"user@example.com","password":"password"}', response: '{"id":1,"email":"user@example.com","access_token":"eyJ...","refresh_token":"eyJ...","expiry_at":1690000000}' },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh`, desc: 'Refresh access token', body: '{"refresh_token":"eyJ..."}', response: '{"access_token":"eyJ...","refresh_token":"eyJ...","expiry_at":1690000000}' }];
-      document.getElementById('auth-api-content').innerHTML = methods.map(m => `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">${m.method}</span><code class="text-sm font-mono text-[#101213] dark:text-white">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">${m.desc}</p><div class="text-xs mb-2"><p class="font-medium">Request Headers:</p><code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded">Content-Type: application/json</code>${m.url.includes('/register')?'<p class="text-gray-500 dark:text-gray-400 mt-1">(Admin authentication required via Authorization header)</p>':''}</div><div class="text-xs mb-2"><p class="font-medium">Request Body:</p><code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded">${m.body}</code></div><div class="text-xs mb-2"><p class="font-medium">Response:</p><code class="block bg-gray-100 dark:bg-gray-800 p-1 rounded">${m.response}</code></div><details class="mb-2"><summary class="text-sm text-[#101213] dark:text-white cursor-pointer">cURL</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-curl-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details><details><summary class="text-sm text-[#101213] dark:text-white cursor-pointer">Node.js</summary><pre class="bg-gray-900 text-gray-100 p-3 rounded-lg mt-1 overflow-x-auto relative"><code id="auth-node-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details></div>`).join('');
+      const base = API_BASE, methods = [
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new user', body: '{"email":"user@example.com","password":"password"}', response: '{"id":1,"email":"user@example.com"}' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login and receive tokens', body: '{"email":"user@example.com","password":"password"}', response: '{"id":1,"email":"user@example.com","access_token":"eyJ...","refresh_token":"eyJ...","expiry_at":1690000000}' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh`, desc: 'Refresh access token', body: '{"refresh_token":"eyJ..."}', response: '{"access_token":"eyJ...","refresh_token":"eyJ...","expiry_at":1690000000}' }
+      ];
+      document.getElementById('auth-api-content').innerHTML = methods.map(m => `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-3"><span class="px-2 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">${m.method}</span><code class="text-sm font-mono">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-3">${m.desc}</p><div class="api-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">📋 Parameters</div><table class="api-param-table w-full hidden"><thead><tr><th>Parameter</th><th>Type</th><th>Example</th><th>Description</th></tr></thead><tbody><tr><td>request body</td><td>object</td><td>${escapeHtml(m.body)}</td><td>${m.desc}</td></tr></tbody></table><div class="api-toggle" onclick="this.nextElementSibling.classList.toggle('hidden')">📦 Response</div><div class="hidden"><p class="text-sm font-medium response-200">200 OK</p><pre class="code-block"><code>${escapeHtml(m.response)}</code></pre></div><details class="mt-2"><summary class="text-sm cursor-pointer">cURL</summary><pre class="code-block"><code id="auth-curl-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-curl-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details><details><summary class="text-sm cursor-pointer">Node.js</summary><pre class="code-block"><code id="auth-node-${m.method}">...</code><button onclick="copyText(document.getElementById('auth-node-${m.method}').textContent, this)" class="absolute top-2 right-2 text-xs brand-btn px-2 py-1 rounded">📋 Copy</button></pre></details></div>`).join('');
       updateAuthApiSnippets(); document.getElementById('auth-api-modal').classList.add('active');
     }
 
-    function updateAuthApiSnippets() {
-      const base = API_BASE, methods = [{ method: 'POST', url: `/api/project/${activeProjectId}/auth/register` },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/login` },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh` }];
-      methods.forEach(m => { const curlEl = document.getElementById(`auth-curl-${m.method}`), nodeEl = document.getElementById(`auth-node-${m.method}`); if (!curlEl || !nodeEl) return; if (m.url.includes('/register')) { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Authorization': 'Bearer YOUR_ADMIN_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`; } else if (m.url.includes('/login')) { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`; } else { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"refresh_token":"YOUR_REFRESH_TOKEN"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({refresh_token:'YOUR_REFRESH_TOKEN'})\n});\nconst data = await res.json();`; } });
-    }
+    function updateAuthApiSnippets() { const base = API_BASE, methods = [{ method: 'POST', url: `/api/project/${activeProjectId}/auth/register` },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/login` },{ method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh` }]; methods.forEach(m => { const curlEl = document.getElementById(`auth-curl-${m.method}`), nodeEl = document.getElementById(`auth-node-${m.method}`); if (!curlEl || !nodeEl) return; if (m.url.includes('/register')) { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Authorization': 'Bearer YOUR_ADMIN_TOKEN', 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`; } else if (m.url.includes('/login')) { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"user@example.com","password":"password"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({email:'user@example.com',password:'password'})\n});\nconst data = await res.json();`; } else { curlEl.textContent = `curl -X POST "${base}${m.url}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"refresh_token":"YOUR_REFRESH_TOKEN"}'`; nodeEl.textContent = `const res = await fetch('${base}${m.url}', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({refresh_token:'YOUR_REFRESH_TOKEN'})\n});\nconst data = await res.json();`; } }); }
 
     function fetchKeysAndUpdateAuth() { fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()).then(data => { anonKeyValue = data.anonKey || ''; adminKeyValue = data.adminKey || ''; openAuthApiModal(); }).catch(() => showToast('Failed to fetch keys', true)); }
     function copyText(text, btn) { navigator.clipboard.writeText(text).then(() => { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = '📋 Copy', 2000); }); }
