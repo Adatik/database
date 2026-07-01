@@ -96,7 +96,7 @@ async function initDb() {
     try { await client.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS admin_key TEXT"); } catch (e) {}
     try { await client.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS auth_config TEXT DEFAULT '{\"token_expiry\": 3600, \"rate_limit\": 100}'"); } catch (e) {}
 
-    // Project users (auth users)
+    // Project users
     await client.query(`
       CREATE TABLE IF NOT EXISTS project_users (
         id SERIAL PRIMARY KEY,
@@ -145,7 +145,6 @@ async function initDb() {
       await client.query("UPDATE projects SET anon_key = $1, admin_key = $2 WHERE id = $3", [anon, admin, proj.id]);
     }
 
-    // Fixed admin when signups disabled
     if (!ALLOW_PUBLIC_SIGNUP && PLATFORM_ADMIN_EMAIL && PLATFORM_ADMIN_PASSWORD) {
       const adminCount = await client.query('SELECT COUNT(*) FROM platform_users');
       if (parseInt(adminCount.rows[0].count) === 0) {
@@ -200,7 +199,6 @@ async function dataAuthMiddleware(req, res, next) {
   let projectId = req.params.projectId ? parseInt(req.params.projectId) : null;
 
   if (apiKey) {
-    // Check project-specific keys
     const keyResult = await pool.query("SELECT id, anon_key, admin_key FROM projects WHERE anon_key = $1 OR admin_key = $1", [apiKey]);
     if (keyResult.rowCount > 0) {
       const proj = keyResult.rows[0];
@@ -211,12 +209,8 @@ async function dataAuthMiddleware(req, res, next) {
         isAnon = true;
       }
     } else {
-      // Fallback to environment keys
-      if (apiKey === ADMIN_KEY) {
-        isAdmin = true;
-      } else if (apiKey === ANON_KEY) {
-        isAnon = true;
-      }
+      if (apiKey === ADMIN_KEY) isAdmin = true;
+      else if (apiKey === ANON_KEY) isAnon = true;
     }
   }
 
@@ -224,13 +218,11 @@ async function dataAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    // Try project user JWT
     try {
       const decoded = jwt.verify(token, PROJECT_JWT_SECRET);
       user = { id: decoded.id, email: decoded.email, type: 'project_user' };
       projectId = decoded.projectId;
     } catch (err) {
-      // Try platform admin JWT
       try {
         const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
         user = { id: decoded.id, email: decoded.email, type: 'platform_user' };
@@ -299,7 +291,7 @@ app.post('/api/platform/login', async (req, res) => {
 app.get('/api/platform/projects', platformAuthMiddleware, async (req, res) => {
   try {
     let result;
-    if (req.platformUser.admin === true) {
+    if (req.platformUser.admin === true && req.platformUser.id === 0) {
       result = await pool.query(`
         SELECT p.id, p.name, p.description, p.created_at, p.auth_config, p.anon_key, p.admin_key,
           (SELECT COUNT(*) FROM _tables t WHERE t.project_id = p.id) AS table_count,
@@ -341,7 +333,6 @@ app.put('/api/platform/projects/:id', platformAuthMiddleware, async (req, res) =
   res.json({ success: true });
 });
 
-// Update project settings (auth config, keys regeneration)
 app.put('/api/platform/projects/:id/settings', platformAuthMiddleware, async (req, res) => {
   const { id } = req.params;
   const { auth_config, regenerate_keys } = req.body;
@@ -723,7 +714,6 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
   const privacy = JSON.parse(meta.rows[0].privacy || '{}');
   const colPerms = JSON.parse(meta.rows[0].column_permissions || '{}');
   const allowedCols = colPerms.read || columns.map(c => c.name);
-  // Exclude internal columns by default
   const selectCols = ['id', ...allowedCols.filter(c => c !== 'id' && c !== 'project_user_id')];
   const tableFullName = `project_${projectId}_${table}`;
 
@@ -732,7 +722,6 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
   const params = [];
   let paramIdx = 1;
 
-  // Apply privacy (RLS) if not admin
   if (!req.isAdmin) {
     if (privacy.read) {
       const ruleResult = applyRule(privacy.read, req.user.id, req.user.email);
@@ -744,14 +733,12 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
         return res.json([]);
       }
     } else {
-      // Default: only own rows
       conditions.push(`project_user_id = $${paramIdx}`);
       params.push(req.user.id);
       paramIdx++;
     }
   }
 
-  // Search
   if (req.query.search && req.query.search.trim()) {
     const term = `%${req.query.search.trim()}%`;
     const placeholder = `$${paramIdx}`;
@@ -761,7 +748,6 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
     paramIdx++;
   }
 
-  // Filters
   if (req.query.filter) {
     if (typeof req.query.filter === 'object' && !Array.isArray(req.query.filter)) {
       const keys = Object.keys(req.query.filter);
@@ -825,13 +811,17 @@ app.post('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, 
   } else {
     // admin inserts use system user
     let systemUserId = 0;
-    const sysRes = await pool.query("SELECT id FROM project_users WHERE project_id = $1 AND email = 'system@internal'", [projectId]);
-    if (sysRes.rowCount === 0) {
-      const hash = await bcrypt.hash('unused', SALT_ROUNDS);
-      const newSys = await pool.query("INSERT INTO project_users (project_id, email, password) VALUES ($1, 'system@internal', $2) RETURNING id", [projectId, hash]);
-      systemUserId = newSys.rows[0].id;
-    } else {
-      systemUserId = sysRes.rows[0].id;
+    try {
+      const sysRes = await pool.query("SELECT id FROM project_users WHERE project_id = $1 AND email = 'system@internal'", [projectId]);
+      if (sysRes.rowCount === 0) {
+        const hash = await bcrypt.hash('unused', SALT_ROUNDS);
+        const newSys = await pool.query("INSERT INTO project_users (project_id, email, password) VALUES ($1, 'system@internal', $2) RETURNING id", [projectId, hash]);
+        systemUserId = newSys.rows[0].id;
+      } else {
+        systemUserId = sysRes.rows[0].id;
+      }
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to create system user: ' + e.message });
     }
     req.body.project_user_id = systemUserId;
   }
@@ -851,7 +841,6 @@ app.post('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, 
   try {
     const result = await pool.query(`INSERT INTO "${tableFullName}" (project_user_id, ${fieldNames.map(n => `"${n}"`).join(', ')}) VALUES ($1, ${placeholders.join(', ')}) RETURNING *`, [req.body.project_user_id, ...values]);
     const newRow = result.rows[0];
-    // Exclude project_user_id from response for public API
     delete newRow.project_user_id;
     res.status(201).json(newRow);
   } catch (err) { res.status(400).json({ error: err.message }); }
@@ -871,7 +860,6 @@ app.put('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async (re
   if (oldResult.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
   const oldRow = oldResult.rows[0];
 
-  // Check update permission
   if (!req.isAdmin) {
     if (oldRow.project_user_id !== req.user.id) {
       if (privacy.update) {
