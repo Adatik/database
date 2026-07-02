@@ -62,7 +62,7 @@ async function ensureUsersMeta(projectId) {
       { name: 'email', type: 'string', auth_role: 'identity' },
       { name: 'password', type: 'string', auth_role: 'verify' }
     ];
-    await pool.query("INSERT INTO _tables (project_id, name, columns, privacy, sort_order) VALUES ($1, 'users', $2, '{}', 0)", [projectId, JSON.stringify(defaultColumns)]);
+    await pool.query("INSERT INTO _tables (project_id, name, columns, privacy, sort_order) VALUES ($1, 'users', $2, '{}', -1)", [projectId, JSON.stringify(defaultColumns)]);
   } else {
     const cols = JSON.parse(existing.rows[0].columns);
     let updated = false;
@@ -76,6 +76,8 @@ async function ensureUsersMeta(projectId) {
       }
     });
     if (updated) await pool.query("UPDATE _tables SET columns = $1 WHERE project_id = $2 AND name = 'users'", [JSON.stringify(cols), projectId]);
+    // Ensure sort_order is -1 for users table so it doesn't appear in table list
+    await pool.query("UPDATE _tables SET sort_order = -1 WHERE project_id = $1 AND name = 'users' AND sort_order >= 0", [projectId]);
   }
 }
 
@@ -100,9 +102,14 @@ async function initDb() {
     try { await client.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS anon_key TEXT"); } catch (e) {}
     try { await client.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS admin_key TEXT"); } catch (e) {}
     try { await client.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS auth_config TEXT DEFAULT '{\"token_expiry\": 3600, \"rate_limit\": 100}'"); } catch (e) {}
-    await client.query(`CREATE TABLE IF NOT EXISTS project_users (id SERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), email TEXT, password TEXT, UNIQUE(project_id, email));`);
+    await client.query(`CREATE TABLE IF NOT EXISTS project_users (id SERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), email TEXT, password TEXT);`);
     try { await client.query("ALTER TABLE project_users ALTER COLUMN email DROP NOT NULL"); } catch (e) {}
-    await client.query(`CREATE TABLE IF NOT EXISTS _tables (id SERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), name TEXT NOT NULL, columns TEXT NOT NULL, privacy TEXT DEFAULT '{}', sort_order INTEGER DEFAULT 0, UNIQUE(project_id, name));`);
+    // Drop old unique constraint if exists
+    try { await client.query("ALTER TABLE project_users DROP CONSTRAINT IF EXISTS project_users_project_id_email_key"); } catch (e) {}
+    await client.query(`CREATE TABLE IF NOT EXISTS _tables (id SERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), name TEXT NOT NULL, columns TEXT NOT NULL, privacy TEXT DEFAULT '{}', sort_order INTEGER DEFAULT 0);`);
+    // Drop old unique constraint and add new one
+    try { await client.query("ALTER TABLE _tables DROP CONSTRAINT IF EXISTS _tables_project_id_name_key"); } catch (e) {}
+    try { await client.query("ALTER TABLE _tables ADD UNIQUE (project_id, name)"); } catch (e) {}
     await client.query(`CREATE TABLE IF NOT EXISTS _webhooks (id SERIAL PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id), table_name TEXT NOT NULL, url TEXT NOT NULL);`);
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS events TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
     try { await client.query("ALTER TABLE _webhooks ADD COLUMN IF NOT EXISTS headers TEXT NOT NULL DEFAULT '[]'"); } catch (e) {}
@@ -197,6 +204,10 @@ async function getUserSchema(projectId) {
   return JSON.parse(meta.rows[0].columns);
 }
 
+// ============================================================
+//  PLATFORM ENDPOINTS
+// ============================================================
+
 app.get('/api/platform/config', (req, res) => res.json({ allowSignup: ALLOW_PUBLIC_SIGNUP }));
 
 app.post('/api/platform/register', async (req, res) => {
@@ -234,8 +245,8 @@ app.post('/api/platform/login', async (req, res) => {
 app.get('/api/platform/projects', platformAuthMiddleware, async (req, res) => {
   try {
     let result;
-    if (req.platformUser.admin === true && req.platformUser.id === 0) result = await pool.query(`SELECT p.id, p.name, p.description, p.created_at, p.auth_config, p.anon_key, p.admin_key, (SELECT COUNT(*) FROM _tables t WHERE t.project_id = p.id) AS table_count, (SELECT COUNT(*) FROM project_users u WHERE u.project_id = p.id AND u.email != 'system@internal') AS user_count FROM projects p ORDER BY p.id`);
-    else result = await pool.query(`SELECT p.id, p.name, p.description, p.created_at, p.auth_config, p.anon_key, p.admin_key, (SELECT COUNT(*) FROM _tables t WHERE t.project_id = p.id) AS table_count, (SELECT COUNT(*) FROM project_users u WHERE u.project_id = p.id AND u.email != 'system@internal') AS user_count FROM projects p WHERE p.platform_user_id = $1 ORDER BY p.id`, [req.platformUser.id]);
+    if (req.platformUser.admin === true && req.platformUser.id === 0) result = await pool.query(`SELECT p.id, p.name, p.description, p.created_at, p.auth_config, p.anon_key, p.admin_key, (SELECT COUNT(*) FROM _tables t WHERE t.project_id = p.id AND t.name != 'users') AS table_count, (SELECT COUNT(*) FROM project_users u WHERE u.project_id = p.id AND u.email != 'system@internal') AS user_count FROM projects p ORDER BY p.id`);
+    else result = await pool.query(`SELECT p.id, p.name, p.description, p.created_at, p.auth_config, p.anon_key, p.admin_key, (SELECT COUNT(*) FROM _tables t WHERE t.project_id = p.id AND t.name != 'users') AS table_count, (SELECT COUNT(*) FROM project_users u WHERE u.project_id = p.id AND u.email != 'system@internal') AS user_count FROM projects p WHERE p.platform_user_id = $1 ORDER BY p.id`, [req.platformUser.id]);
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -267,13 +278,16 @@ app.delete('/api/platform/projects/:id', platformAuthMiddleware, async (req, res
   if (req.platformUser.admin !== true) { if (!password) return res.status(400).json({ error: 'Password required' }); const user = await pool.query('SELECT * FROM platform_users WHERE id = $1', [req.platformUser.id]); if (user.rowCount === 0) return res.status(404).json({ error: 'User not found' }); const valid = await bcrypt.compare(password, user.rows[0].password); if (!valid) return res.status(400).json({ error: 'Invalid password' }); }
   const hasAccess = await verifyProjectAccess(pool, id, req.platformUser); if (!hasAccess) return res.status(404).json({ error: 'Project not found or access denied' });
   const client = await pool.connect();
-  try { await client.query('BEGIN'); const tables = await client.query('SELECT name FROM _tables WHERE project_id = $1', [id]); for (const t of tables.rows) await client.query(`DROP TABLE IF EXISTS "project_${id}_${t.name}"`); await client.query('DELETE FROM _webhooks WHERE project_id = $1', [id]); await client.query('DELETE FROM _tables WHERE project_id = $1', [id]); await client.query('DELETE FROM project_users WHERE project_id = $1', [id]); await client.query('DELETE FROM projects WHERE id = $1', [id]); await client.query('COMMIT'); res.json({ success: true }); }
+  try { await client.query('BEGIN'); const tables = await client.query('SELECT name FROM _tables WHERE project_id = $1 AND name != \'users\'', [id]); for (const t of tables.rows) await client.query(`DROP TABLE IF EXISTS "project_${id}_${t.name}"`); await client.query('DELETE FROM _webhooks WHERE project_id = $1', [id]); await client.query('DELETE FROM _tables WHERE project_id = $1', [id]); await client.query('DELETE FROM project_users WHERE project_id = $1', [id]); await client.query('DELETE FROM projects WHERE id = $1', [id]); await client.query('COMMIT'); res.json({ success: true }); }
   catch (err) { await client.query('ROLLBACK'); res.status(500).json({ error: err.message }); } finally { client.release(); }
 });
 
 app.get('/api/auth-keys', platformAuthMiddleware, async (req, res) => res.json({ anonKey: ANON_KEY, adminKey: ADMIN_KEY }));
 
-// Project Auth
+// ============================================================
+//  PROJECT AUTH
+// ============================================================
+
 app.post('/api/project/:projectId/auth/register', publicAuthMiddleware, async (req, res) => {
   const projectId = req.params.projectId;
   await ensureUsersMeta(projectId);
@@ -281,12 +295,20 @@ app.post('/api/project/:projectId/auth/register', publicAuthMiddleware, async (r
   const identityCols = schema.filter(c => c.auth_role === 'identity');
   const verifyCols = schema.filter(c => c.auth_role === 'verify');
   const normalCols = schema.filter(c => c.auth_role === 'normal');
+  
+  // Check at least one identity and one verify provided
+  let hasIdentity = false, hasVerify = false;
+  for (const c of identityCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { hasIdentity = true; break; } }
+  for (const c of verifyCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { hasVerify = true; break; } }
+  if (!hasIdentity) return res.status(400).json({ error: 'At least one identity field is required (e.g. email)' });
+  if (!hasVerify) return res.status(400).json({ error: 'At least one verification field is required (e.g. password)' });
+  
   const insertCols = ['project_id']; const insertValues = [projectId]; const insertPlaceholders = ['$1'];
   let idx = 2;
-  for (const c of identityCols) { if (req.body[c.name] !== undefined) { insertCols.push(`"${c.name}"`); insertValues.push(req.body[c.name]); insertPlaceholders.push(`$${idx++}`); } }
-  for (const c of verifyCols) { if (req.body[c.name] !== undefined) { const val = req.body[c.name]; insertCols.push(`"${c.name}"`); insertValues.push(c.name === 'password' ? await bcrypt.hash(val, SALT_ROUNDS) : val); insertPlaceholders.push(`$${idx++}`); } }
-  for (const c of normalCols) { if (req.body[c.name] !== undefined) { insertCols.push(`"${c.name}"`); insertValues.push(req.body[c.name]); insertPlaceholders.push(`$${idx++}`); } }
-  if (insertCols.length <= 1) return res.status(400).json({ error: 'No valid fields provided' });
+  for (const c of identityCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { insertCols.push(`"${c.name}"`); insertValues.push(req.body[c.name]); insertPlaceholders.push(`$${idx++}`); } }
+  for (const c of verifyCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { const val = req.body[c.name]; insertCols.push(`"${c.name}"`); insertValues.push(c.name === 'password' ? await bcrypt.hash(val, SALT_ROUNDS) : val); insertPlaceholders.push(`$${idx++}`); } }
+  for (const c of normalCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { insertCols.push(`"${c.name}"`); insertValues.push(req.body[c.name]); insertPlaceholders.push(`$${idx++}`); } }
+  
   try {
     const result = await pool.query(`INSERT INTO project_users (${insertCols.join(', ')}) VALUES (${insertPlaceholders.join(', ')}) RETURNING id`, insertValues);
     const user = result.rows[0];
@@ -297,10 +319,10 @@ app.post('/api/project/:projectId/auth/register', publicAuthMiddleware, async (r
     const accessToken = jwt.sign(accessPayload, PROJECT_JWT_SECRET, { expiresIn: tokenExpiry });
     const refreshPayload = { id: user.id, projectId: parseInt(projectId), type: 'refresh' };
     const refreshToken = jwt.sign(refreshPayload, PROJECT_JWT_SECRET, { expiresIn: '7d' });
-    const returnData = { id: user.id, access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
+    const returnData = { access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
     for (const c of [...identityCols, ...normalCols]) { if (req.body[c.name] !== undefined) returnData[c.name] = req.body[c.name]; }
     res.status(200).json(returnData);
-  } catch (err) { if (err.code === '23505') return res.status(400).json({ error: 'A user with these credentials already exists' }); res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post('/api/project/:projectId/auth/login', publicAuthMiddleware, async (req, res) => {
@@ -309,17 +331,20 @@ app.post('/api/project/:projectId/auth/login', publicAuthMiddleware, async (req,
   const schema = await getUserSchema(projectId);
   const identityCols = schema.filter(c => c.auth_role === 'identity');
   const verifyCols = schema.filter(c => c.auth_role === 'verify');
+  
   let identityCol = null, identityVal = null;
-  for (const c of identityCols) { if (req.body[c.name] !== undefined) { identityCol = c; identityVal = req.body[c.name]; break; } }
+  for (const c of identityCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { identityCol = c; identityVal = req.body[c.name]; break; } }
   if (!identityCol) return res.status(400).json({ error: 'No identity field provided' });
   let verifyCol = null, verifyVal = null;
-  for (const c of verifyCols) { if (req.body[c.name] !== undefined) { verifyCol = c; verifyVal = req.body[c.name]; break; } }
+  for (const c of verifyCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { verifyCol = c; verifyVal = req.body[c.name]; break; } }
   if (!verifyCol) return res.status(400).json({ error: 'No verification field provided' });
+  
   const result = await pool.query(`SELECT * FROM project_users WHERE project_id = $1 AND "${identityCol.name}" = $2 AND email != 'system@internal'`, [projectId, identityVal]);
   if (result.rowCount === 0) return res.status(400).json({ error: 'Invalid credentials' });
   const user = result.rows[0];
   if (verifyCol.name === 'password') { const valid = await bcrypt.compare(verifyVal, user[verifyCol.name] || ''); if (!valid) return res.status(400).json({ error: 'Invalid credentials' }); }
   else { if (user[verifyCol.name] !== verifyVal) return res.status(400).json({ error: 'Invalid credentials' }); }
+  
   const proj = await pool.query('SELECT auth_config FROM projects WHERE id = $1', [projectId]);
   const authConfig = JSON.parse(proj.rows[0].auth_config || '{}');
   const tokenExpiry = authConfig.token_expiry || 3600;
@@ -327,7 +352,7 @@ app.post('/api/project/:projectId/auth/login', publicAuthMiddleware, async (req,
   const accessToken = jwt.sign(accessPayload, PROJECT_JWT_SECRET, { expiresIn: tokenExpiry });
   const refreshPayload = { id: user.id, projectId: parseInt(projectId), type: 'refresh' };
   const refreshToken = jwt.sign(refreshPayload, PROJECT_JWT_SECRET, { expiresIn: '7d' });
-  const returnData = { id: user.id, access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
+  const returnData = { access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
   for (const c of [...identityCols, ...schema.filter(c => c.auth_role === 'normal')]) { if (user[c.name] !== undefined && user[c.name] !== null) returnData[c.name] = user[c.name]; }
   res.status(200).json(returnData);
 });
@@ -338,7 +363,7 @@ app.post('/api/project/:projectId/auth/verify', platformAuthMiddleware, async (r
   const schema = await getUserSchema(projectId);
   const identityCols = schema.filter(c => c.auth_role === 'identity');
   let identityCol = null, identityVal = null;
-  for (const c of identityCols) { if (req.body[c.name] !== undefined) { identityCol = c; identityVal = req.body[c.name]; break; } }
+  for (const c of identityCols) { if (req.body[c.name] !== undefined && req.body[c.name] !== '') { identityCol = c; identityVal = req.body[c.name]; break; } }
   if (!identityCol) return res.status(400).json({ error: 'No identity field provided' });
   const result = await pool.query(`SELECT * FROM project_users WHERE project_id = $1 AND "${identityCol.name}" = $2 AND email != 'system@internal'`, [projectId, identityVal]);
   if (result.rowCount === 0) return res.status(404).json({ error: 'User not found' });
@@ -350,7 +375,7 @@ app.post('/api/project/:projectId/auth/verify', platformAuthMiddleware, async (r
   const accessToken = jwt.sign(accessPayload, PROJECT_JWT_SECRET, { expiresIn: tokenExpiry });
   const refreshPayload = { id: user.id, projectId: parseInt(projectId), type: 'refresh' };
   const refreshToken = jwt.sign(refreshPayload, PROJECT_JWT_SECRET, { expiresIn: '7d' });
-  const returnData = { id: user.id, access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
+  const returnData = { access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer', expires_in: tokenExpiry };
   for (const c of [...identityCols, ...schema.filter(c => c.auth_role === 'normal')]) { if (user[c.name] !== undefined && user[c.name] !== null) returnData[c.name] = user[c.name]; }
   res.status(200).json(returnData);
 });
@@ -403,7 +428,7 @@ app.put('/api/project/:projectId/users/:id', platformAuthMiddleware, async (req,
   const schema = await getUserSchema(projectId);
   const setClauses = []; const values = []; let paramIdx = 1;
   for (const c of schema.filter(c => c.auth_role !== 'system')) {
-    if (req.body[c.name] !== undefined) {
+    if (req.body[c.name] !== undefined && req.body[c.name] !== '') {
       if (c.name === 'password') { setClauses.push(`"${c.name}" = $${paramIdx++}`); values.push(await bcrypt.hash(req.body[c.name], SALT_ROUNDS)); }
       else { setClauses.push(`"${c.name}" = $${paramIdx++}`); values.push(req.body[c.name]); }
     }
@@ -427,17 +452,20 @@ app.get('/api/project/:projectId/users-schema', platformAuthMiddleware, async (r
   const hasAccess = await verifyProjectAccess(pool, projectId, req.platformUser);
   if (!hasAccess) return res.status(404).json({ error: 'Project not found or access denied' });
   await ensureUsersMeta(projectId);
-  const schema = await getUserSchema(projectId);
-  res.json(schema);
+  res.json(await getUserSchema(projectId));
 });
 
-// Table Management
+// ============================================================
+//  TABLE MANAGEMENT
+// ============================================================
+
 app.get('/api/project/:projectId/tables', platformAuthMiddleware, async (req, res) => {
   const { projectId } = req.params;
   const hasAccess = await verifyProjectAccess(pool, projectId, req.platformUser);
   if (!hasAccess) return res.status(404).json({ error: 'Project not found or access denied' });
   await ensureUsersMeta(projectId);
-  const result = await pool.query("SELECT name, columns, privacy, column_permissions, sort_order FROM _tables WHERE project_id = $1 ORDER BY sort_order, id", [projectId]);
+  // Exclude users table from listing
+  const result = await pool.query("SELECT name, columns, privacy, column_permissions, sort_order FROM _tables WHERE project_id = $1 AND name != 'users' ORDER BY sort_order, id", [projectId]);
   res.json(result.rows.map(t => ({ name: t.name, columns: JSON.parse(t.columns), privacy: JSON.parse(t.privacy || '{}'), column_permissions: JSON.parse(t.column_permissions || '{}'), sort_order: t.sort_order })));
 });
 
@@ -449,21 +477,12 @@ app.post('/api/project/:projectId/tables', platformAuthMiddleware, async (req, r
   if (!name || !Array.isArray(columns) || columns.length === 0) return res.status(400).json({ error: 'Name and at least one column required' });
   const safeName = name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
   if (!safeName) return res.status(400).json({ error: 'Invalid table name' });
-  if (safeName === 'users') {
-    const newCols = columns.filter(c => !c.auth_role || c.auth_role === 'normal');
-    for (const c of newCols) {
-      if (c.auth_role === 'system') continue;
-      const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-      await pool.query(`ALTER TABLE project_users ADD COLUMN IF NOT EXISTS "${colName}" ${mapType(c.type)}`).catch(() => {});
-    }
-    await pool.query("UPDATE _tables SET columns = $1 WHERE project_id = $2 AND name = 'users'", [JSON.stringify(columns), projectId]);
-    return res.status(201).json({ name: 'users', columns });
-  }
+  if (safeName === 'users') return res.status(400).json({ error: 'Cannot create users table. Use User Schema instead.' });
   const colDefs = columns.map(c => { const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase(); const type = mapType(c.type); let def = ''; if (c.default !== undefined && c.default !== '') { if (type === 'BOOLEAN') def = ` DEFAULT ${c.default === 'true' ? 'TRUE' : 'FALSE'}`; else if (type === 'INTEGER' || type === 'REAL') def = ` DEFAULT ${c.default}`; else def = ` DEFAULT '${c.default.replace(/'/g, "''")}'`; } return `"${colName}" ${type}${def}`; }).join(', ');
   const tableFullName = `project_${projectId}_${safeName}`;
   try {
     await pool.query(`CREATE TABLE "${tableFullName}" (id SERIAL PRIMARY KEY, project_user_id INTEGER NOT NULL REFERENCES project_users(id), ${colDefs})`);
-    const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) as max FROM _tables WHERE project_id = $1', [projectId]);
+    const maxOrder = await pool.query('SELECT COALESCE(MAX(sort_order), 0) as max FROM _tables WHERE project_id = $1 AND name != \'users\'', [projectId]);
     const nextOrder = maxOrder.rows[0].max + 1;
     await pool.query('INSERT INTO _tables (project_id, name, columns, privacy, column_permissions, sort_order) VALUES ($1, $2, $3, $4, $5, $6)', [projectId, safeName, JSON.stringify(columns), '{}', JSON.stringify({ read: columns.map(c => c.name), write: columns.map(c => c.name), update: columns.map(c => c.name) }), nextOrder]);
     res.status(201).json({ name: safeName, columns });
@@ -494,7 +513,7 @@ app.put('/api/project/:projectId/tables/:name/schema', platformAuthMiddleware, a
     const oldCols = JSON.parse(meta.rows[0].columns);
     const newCols = columns.filter(c => !oldCols.find(oc => oc.name === c.name));
     const tableFullName = `project_${projectId}_${name}`;
-    for (const c of newCols) { const colName = c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase(); await pool.query(`ALTER TABLE "${tableFullName}" ADD COLUMN "${colName}" ${mapType(c.type)}`).catch(() => {}); }
+    for (const c of newCols) await pool.query(`ALTER TABLE "${tableFullName}" ADD COLUMN "${c.name.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()}" ${mapType(c.type)}`).catch(() => {});
     await pool.query('UPDATE _tables SET columns = $1 WHERE project_id = $2 AND name = $3', [JSON.stringify(columns), projectId, name]);
     res.json({ name, columns });
   } catch (err) { res.status(400).json({ error: err.message }); }
@@ -522,7 +541,10 @@ app.delete('/api/project/:projectId/tables/:name', platformAuthMiddleware, async
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Data CRUD
+// ============================================================
+//  DATA CRUD
+// ============================================================
+
 app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, res) => {
   const projectId = req.projectId, table = req.params.table;
   if (table === 'users') {
@@ -531,7 +553,7 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
     const visibleCols = schema.filter(c => c.auth_role !== 'verify' && c.auth_role !== 'system');
     const selectCols = ['id', ...visibleCols.map(c => `"${c.name}"`)];
     try { const r = await pool.query(`SELECT ${selectCols.join(', ')} FROM project_users WHERE project_id = $1 AND email != 'system@internal' ORDER BY id`, [projectId]); return res.json(r.rows); }
-    catch (err) { const r = await pool.query("SELECT id FROM project_users WHERE project_id = $1 AND email != 'system@internal' ORDER BY id", [projectId]); return res.json(r.rows); }
+    catch (err) { return res.json([]); }
   }
   const meta = await pool.query('SELECT columns, privacy, column_permissions FROM _tables WHERE project_id = $1 AND name = $2', [projectId, table]);
   if (meta.rowCount === 0) return res.status(404).json({ error: 'Table not found' });
@@ -539,16 +561,16 @@ app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, r
   const allowedCols = colPerms.read || columns.map(c => c.name);
   const selectCols = ['id', ...allowedCols.filter(c => c !== 'id' && c !== 'project_user_id')];
   const tableFullName = `project_${projectId}_${table}`;
-  let query = `SELECT ${selectCols.map(c => `"${c}"`).join(', ')} FROM "${tableFullName}"`;
+  let query = `SELECT ${selectCols.map(c => `"${c}"`).join(', ')} FROM "${tableFullName}" AS _main`;
   const conditions = [], params = []; let paramIdx = 1;
   if (!req.isAdmin) {
-    if (privacy.read) { const rule = await applyPrivacyRule(privacy.read, req.user.id, req.user.email, projectId, table); if (rule) { conditions.push(rule.sql); params.push(...rule.params); paramIdx += rule.params.length; } else return res.json([]); }
-    else { conditions.push(`project_user_id = $${paramIdx}`); params.push(req.user.id); paramIdx++; }
+    if (privacy.read) { const rule = await applyPrivacyRule(privacy.read, req.user.id, req.user.email, projectId, table, tableFullName); if (rule) { conditions.push(rule.sql); params.push(...rule.params); paramIdx += rule.params.length; } else return res.json([]); }
+    else { conditions.push(`_main.project_user_id = $${paramIdx}`); params.push(req.user.id); paramIdx++; }
   }
-  if (req.query.search?.trim()) { const t = `%${req.query.search.trim()}%`; conditions.push(`(${selectCols.map(c => `"${c}"::text ILIKE $${paramIdx}`).join(' OR ')})`); params.push(t); paramIdx++; }
-  if (req.query.filter && typeof req.query.filter === 'object' && !Array.isArray(req.query.filter)) { Object.keys(req.query.filter).forEach(key => { const f = req.query.filter[key]; if (f.column && f.value !== undefined && columns.map(c => c.name).includes(f.column)) { const op = f.operator || 'eq', sqlOp = opMap[op] || '='; if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') { conditions.push(`"${f.column}" ${sqlOp} $${paramIdx}`); params.push(`%${f.value}%`); } else { conditions.push(`"${f.column}" ${sqlOp} $${paramIdx}`); params.push(f.value); } paramIdx++; } }); }
+  if (req.query.search?.trim()) { const t = `%${req.query.search.trim()}%`; conditions.push(`(${selectCols.map(c => `_main."${c}"::text ILIKE $${paramIdx}`).join(' OR ')})`); params.push(t); paramIdx++; }
+  if (req.query.filter && typeof req.query.filter === 'object' && !Array.isArray(req.query.filter)) { Object.keys(req.query.filter).forEach(key => { const f = req.query.filter[key]; if (f.column && f.value !== undefined && columns.map(c => c.name).includes(f.column)) { const op = f.operator || 'eq', sqlOp = opMap[op] || '='; if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') { conditions.push(`_main."${f.column}" ${sqlOp} $${paramIdx}`); params.push(`%${f.value}%`); } else { conditions.push(`_main."${f.column}" ${sqlOp} $${paramIdx}`); params.push(f.value); } paramIdx++; } }); }
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  if (req.query.sort && selectCols.includes(req.query.sort)) query += ` ORDER BY "${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`; else query += ' ORDER BY id DESC';
+  if (req.query.sort && selectCols.includes(req.query.sort)) query += ` ORDER BY _main."${req.query.sort}" ${req.query.order === 'desc' ? 'DESC' : 'ASC'}`; else query += ' ORDER BY _main.id DESC';
   if (req.query.limit) { const limit = Math.max(0, parseInt(req.query.limit) || 50), offset = Math.max(0, parseInt(req.query.offset) || 0); query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`; params.push(limit, offset); }
   try { const result = await pool.query(query, params); res.json(result.rows); } catch (err) { res.status(400).json({ error: err.message }); }
 });
@@ -562,7 +584,7 @@ app.post('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, 
   let userId = req.user.id;
   if (req.isAdmin) { const adminEmail = req.user.email || 'admin@platform'; let userRec = await pool.query("SELECT id FROM project_users WHERE project_id = $1 AND email = $2", [projectId, adminEmail]); if (userRec.rowCount === 0) { const hash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), SALT_ROUNDS); const nu = await pool.query("INSERT INTO project_users (project_id, email, password) VALUES ($1, $2, $3) RETURNING id", [projectId, adminEmail, hash]); userId = nu.rows[0].id; } else userId = userRec.rows[0].id; }
   else { const allowedWrite = colPerms.write || columns.map(c => c.name); const forbidden = Object.keys(req.body).filter(f => !allowedWrite.includes(f)); if (forbidden.length) return res.status(403).json({ error: `Write permission denied for: ${forbidden.join(', ')}` }); }
-  if (req.body.id) { const tableFullName = `project_${projectId}_${table}`; const existing = await pool.query(`SELECT 1 FROM "${tableFullName}" WHERE id = $1`, [req.body.id]); if (existing.rowCount > 0) return res.status(400).json({ error: 'A row with this ID already exists' }); }
+  if (req.body.id) { const existing = await pool.query(`SELECT 1 FROM "project_${projectId}_${table}" WHERE id = $1`, [req.body.id]); if (existing.rowCount > 0) return res.status(400).json({ error: 'A row with this ID already exists' }); }
   const fields = columns.filter(c => req.body[c.name] !== undefined);
   if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
   const tableFullName = `project_${projectId}_${table}`;
@@ -586,7 +608,7 @@ app.put('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async (re
   const old = await pool.query(`SELECT * FROM "${tableFullName}" WHERE id = $1`, [id]);
   if (old.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
   if (!req.isAdmin && old.rows[0].project_user_id !== req.user.id) {
-    if (privacy.update) { const rule = await applyPrivacyRule(privacy.update, req.user.id, req.user.email, projectId, table); if (!rule) return res.status(403).json({ error: 'Forbidden' }); const check = await pool.query(`SELECT 1 FROM "${tableFullName}" WHERE id = $1 AND ${rule.sql}`, [id, ...rule.params]); if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden' }); }
+    if (privacy.update) { const rule = await applyPrivacyRule(privacy.update, req.user.id, req.user.email, projectId, table, tableFullName); if (!rule) return res.status(403).json({ error: 'Forbidden' }); const check = await pool.query(`SELECT 1 FROM "${tableFullName}" WHERE id = $1 AND ${rule.sql}`, [id, ...rule.params]); if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden' }); }
     else return res.status(403).json({ error: 'You can only update your own rows' });
   }
   const fields = columns.filter(c => req.body[c.name] !== undefined);
@@ -609,7 +631,7 @@ app.delete('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async 
   const old = await pool.query(`SELECT * FROM "${tableFullName}" WHERE id = $1`, [id]);
   if (old.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
   if (!req.isAdmin && old.rows[0].project_user_id !== req.user.id) {
-    if (privacy.delete) { const rule = await applyPrivacyRule(privacy.delete, req.user.id, req.user.email, projectId, table); if (!rule) return res.status(403).json({ error: 'Forbidden' }); const check = await pool.query(`SELECT 1 FROM "${tableFullName}" WHERE id = $1 AND ${rule.sql}`, [id, ...rule.params]); if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden' }); }
+    if (privacy.delete) { const rule = await applyPrivacyRule(privacy.delete, req.user.id, req.user.email, projectId, table, tableFullName); if (!rule) return res.status(403).json({ error: 'Forbidden' }); const check = await pool.query(`SELECT 1 FROM "${tableFullName}" WHERE id = $1 AND ${rule.sql}`, [id, ...rule.params]); if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden' }); }
     else return res.status(403).json({ error: 'You can only delete your own rows' });
   }
   await pool.query(`DELETE FROM "${tableFullName}" WHERE id = $1`, [id]);
@@ -652,13 +674,19 @@ app.post('/api/project/:projectId/webhooks/:table', platformAuthMiddleware, asyn
 
 app.delete('/api/project/:projectId/webhooks/:id', platformAuthMiddleware, async (req, res) => {
   const { projectId, id } = req.params; const hasAccess = await verifyProjectAccess(pool, projectId, req.platformUser); if (!hasAccess) return res.status(404).json({ error: 'Project not found or access denied' });
-  await pool.query('DELETE FROM _webhooks WHERE id = $1 AND project_id = $2', [id, projectId]); res.json({ success: true });
+  // Fixed: don't filter by project_id column, filter by id only since webhook id is unique
+  const wh = await pool.query('SELECT project_id FROM _webhooks WHERE id = $1', [id]);
+  if (wh.rowCount === 0 || wh.rows[0].project_id != projectId) return res.status(404).json({ error: 'Webhook not found' });
+  await pool.query('DELETE FROM _webhooks WHERE id = $1', [id]);
+  res.json({ success: true });
 });
 
-// Helpers
+// ============================================================
+//  HELPERS
+// ============================================================
 const opMap = { 'eq': '=', 'neq': '<>', 'gt': '>', 'lt': '<', 'gte': '>=', 'lte': '<=', 'contains': 'LIKE', 'not_contains': 'NOT LIKE' };
 
-async function applyPrivacyRule(rule, userId, userEmail, projectId, currentTable) {
+async function applyPrivacyRule(rule, userId, userEmail, projectId, currentTable, mainTableAlias) {
   if (!rule || !rule.trim()) return null;
   const match = rule.match(/^(\S+)\s+(\S+)\s+(.*)$/);
   if (!match) return null;
@@ -666,29 +694,33 @@ async function applyPrivacyRule(rule, userId, userEmail, projectId, currentTable
   let rest = match[3].trim();
   const sqlOp = opMap[operator];
   if (!sqlOp) return null;
+  const alias = mainTableAlias || `_main`;
   const braceMatch = rest.match(/^\{([^}]+)\}\s*(.*)$/);
   if (braceMatch) {
     const ref = braceMatch[1], specificValues = braceMatch[2] ? braceMatch[2].trim() : '';
-    if (ref === 'Auth.ID') return { sql: `"${col}" = $1`, params: [userId] };
-    if (ref === 'Auth.Email') return { sql: `"${col}" = $1`, params: [userEmail] };
+    if (ref === 'Auth.ID') return { sql: `${alias}."${col}" = $1`, params: [userId] };
+    if (ref === 'Auth.Email') return { sql: `${alias}."${col}" = $1`, params: [userEmail] };
     const dotIndex = ref.indexOf('.');
     if (dotIndex === -1) {
-      if (specificValues) { const values = specificValues.split(',').map(v => v.trim()).filter(Boolean); if (!values.length) return null; if (values.length === 1) return { sql: `"${col}" = $1`, params: [values[0]] }; return { sql: `"${col}" IN (${values.map((_, i) => `$${i + 1}`).join(', ')})`, params: values }; }
-      return { sql: `"${col}" = $1`, params: [ref] };
+      if (specificValues) { const values = specificValues.split(',').map(v => v.trim()).filter(Boolean); if (!values.length) return null; if (values.length === 1) return { sql: `${alias}."${col}" = $1`, params: [values[0]] }; return { sql: `${alias}."${col}" IN (${values.map((_, i) => `$${i + 1}`).join(', ')})`, params: values }; }
+      return { sql: `${alias}."${col}" = $1`, params: [ref] };
     }
     const refTable = ref.substring(0, dotIndex), refCol = ref.substring(dotIndex + 1);
     const refTableFullName = `project_${projectId}_${refTable}`;
+    // Use EXISTS with correlated subquery for cross-table privacy
     if (specificValues) {
       const values = specificValues.split(',').map(v => v.trim()).filter(Boolean);
-      if (!values.length) return { sql: `"${col}" IN (SELECT "${refCol}" FROM "${refTableFullName}" WHERE project_user_id = $1)`, params: [userId] };
-      return { sql: `"${col}" IN (SELECT "${refCol}" FROM "${refTableFullName}" WHERE project_user_id = $1 AND "${refCol}" IN (${values.map((_, i) => `$${i + 2}`).join(', ')}))`, params: [userId, ...values] };
+      if (!values.length) {
+        return { sql: `EXISTS (SELECT 1 FROM "${refTableFullName}" AS _ref WHERE _ref.project_user_id = $1 AND _ref."${refCol}" = ${alias}."${col}")`, params: [userId] };
+      }
+      return { sql: `EXISTS (SELECT 1 FROM "${refTableFullName}" AS _ref WHERE _ref.project_user_id = $1 AND _ref."${refCol}" IN (${values.map((_, i) => `$${i + 2}`).join(', ')}) AND _ref."${refCol}" = ${alias}."${col}")`, params: [userId, ...values] };
     }
-    return { sql: `"${col}" IN (SELECT "${refCol}" FROM "${refTableFullName}" WHERE project_user_id = $1)`, params: [userId] };
+    return { sql: `EXISTS (SELECT 1 FROM "${refTableFullName}" AS _ref WHERE _ref.project_user_id = $1 AND _ref."${refCol}" = ${alias}."${col}")`, params: [userId] };
   }
   rest = rest.replace(/@user_id/g, userId.toString()).replace(/@user_email/g, userEmail || '');
-  if (rest.includes(',')) { const values = rest.split(',').map(v => v.trim()).filter(Boolean); if (!values.length) return null; if (values.length === 1) return { sql: `"${col}" = $1`, params: [values[0]] }; return { sql: `"${col}" IN (${values.map((_, i) => `$${i + 1}`).join(', ')})`, params: values }; }
-  if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') return { sql: `"${col}" ${sqlOp} $1`, params: [`%${rest}%`] };
-  return { sql: `"${col}" ${sqlOp} $1`, params: [rest] };
+  if (rest.includes(',')) { const values = rest.split(',').map(v => v.trim()).filter(Boolean); if (!values.length) return null; if (values.length === 1) return { sql: `${alias}."${col}" = $1`, params: [values[0]] }; return { sql: `${alias}."${col}" IN (${values.map((_, i) => `$${i + 1}`).join(', ')})`, params: values }; }
+  if (sqlOp === 'LIKE' || sqlOp === 'NOT LIKE') return { sql: `${alias}."${col}" ${sqlOp} $1`, params: [`%${rest}%`] };
+  return { sql: `${alias}."${col}" ${sqlOp} $1`, params: [rest] };
 }
 
 function mapType(type) {
