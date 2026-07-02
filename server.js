@@ -318,7 +318,6 @@ app.post('/api/project/:projectId/auth/register', publicAuthMiddleware, async (r
 
   const insertCols = ['project_id']; const insertValues = [projectId]; const insertPlaceholders = ['$1'];
   let idx = 2;
-  // Handle optional custom ID
   if (req.body.id) {
     const existing = await pool.query('SELECT 1 FROM project_users WHERE id = $1 AND project_id = $2', [req.body.id, projectId]);
     if (existing.rowCount > 0) return res.status(400).json({ error: 'A user with this ID already exists' });
@@ -514,10 +513,8 @@ app.put('/api/project/:projectId/tables/:name/schema', platformAuthMiddleware, a
   const { columns } = req.body;
   if (!Array.isArray(columns)) return res.status(400).json({ error: 'columns array required' });
   if (name === 'users') {
-    // Prevent renaming/deleting system id
     const hasSystemId = columns.some(c => c.name === 'id' && c.auth_role === 'system');
     if (!hasSystemId) return res.status(400).json({ error: 'System ID column is required and cannot be removed' });
-    // Prevent duplicate id columns
     const idCols = columns.filter(c => c.name === 'id');
     if (idCols.length > 1) return res.status(400).json({ error: 'Only one ID column is allowed' });
     const table = await pool.query('SELECT * FROM _tables WHERE project_id = $1 AND name = $2', [projectId, 'users']);
@@ -566,7 +563,7 @@ app.delete('/api/project/:projectId/tables/:name', platformAuthMiddleware, async
 });
 
 // ============================================================
-//  DATA CRUD (admin always bypasses privacy)
+//  DATA CRUD
 // ============================================================
 
 app.get('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, res) => {
@@ -622,7 +619,11 @@ app.post('/api/project/:projectId/data/:table', dataAuthMiddleware, async (req, 
   finalQuery += `) VALUES (${valPlaceholders.join(', ')}) RETURNING *`;
   const finalValues = []; if (req.body.id) finalValues.push(req.body.id); finalValues.push(userId);
   finalValues.push(...fields.map(f => { const colMeta = columns.find(c => c.name === f.name); if (colMeta && (colMeta.type === 'boolean' || colMeta.type === 'bool')) return req.body[f.name] === 'true' || req.body[f.name] === true; return req.body[f.name]; }));
-  try { const result = await pool.query(finalQuery, finalValues); const newRow = result.rows[0]; delete newRow.project_user_id; triggerWebhooks('insert', null, newRow, table, projectId); broadcastChange('insert', null, newRow, table, projectId); res.status(201).json(newRow); } catch (err) { res.status(400).json({ error: err.message }); }
+  try { const result = await pool.query(finalQuery, finalValues); const newRow = result.rows[0]; delete newRow.project_user_id;
+    try { triggerWebhooks('insert', null, newRow, table, projectId); } catch(e) { startupLog('Webhook trigger error: ' + e.message); }
+    broadcastChange('insert', null, newRow, table, projectId);
+    res.status(201).json(newRow);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 app.put('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async (req, res) => {
@@ -634,7 +635,6 @@ app.put('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async (re
   const tableFullName = `project_${projectId}_${table}`;
   const old = await pool.query(`SELECT * FROM "${tableFullName}" WHERE id = $1`, [id]);
   if (old.rowCount === 0) return res.status(404).json({ error: 'Row not found' });
-  // Admin bypasses privacy
   if (!req.isAdmin) {
     if (privacy.update && privacy.update.trim()) { const rule = await applyPrivacyRule(privacy.update, req.user.id, req.user.email, projectId, table, '_main'); if (!rule) return res.status(403).json({ error: 'Forbidden' }); const check = await pool.query(`SELECT 1 FROM "${tableFullName}" AS _main WHERE _main.id = $1 AND ${rule.sql}`, [id, ...rule.params]); if (check.rowCount === 0) return res.status(403).json({ error: 'Forbidden' }); }
     else if (old.rows[0].project_user_id !== req.user.id) return res.status(403).json({ error: 'You can only update your own rows' });
@@ -645,7 +645,7 @@ app.put('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async (re
   await pool.query(`UPDATE "${tableFullName}" SET ${setClauses} WHERE id = $1`, values);
   const newRow = await pool.query(`SELECT * FROM "${tableFullName}" WHERE id = $1`, [id]); delete newRow.rows[0].project_user_id;
   broadcastChange('update', old.rows[0], newRow.rows[0], table, projectId);
-  triggerWebhooks('update', old.rows[0], newRow.rows[0], table, projectId);
+  try { triggerWebhooks('update', old.rows[0], newRow.rows[0], table, projectId); } catch(e) { startupLog('Webhook trigger error: ' + e.message); }
   res.json(newRow.rows[0]);
 });
 
@@ -664,11 +664,11 @@ app.delete('/api/project/:projectId/data/:table/:id', dataAuthMiddleware, async 
   }
   await pool.query(`DELETE FROM "${tableFullName}" WHERE id = $1`, [id]);
   broadcastChange('delete', old.rows[0], null, table, projectId);
-  triggerWebhooks('delete', old.rows[0], null, table, projectId);
+  try { triggerWebhooks('delete', old.rows[0], null, table, projectId); } catch(e) { startupLog('Webhook trigger error: ' + e.message); }
   res.json({ success: true });
 });
 
-// Bulk endpoints (admin only)
+// Bulk endpoints
 app.post('/api/project/:projectId/data/:table/bulk/delete', platformAuthMiddleware, async (req, res) => {
   const { projectId, table } = req.params; const hasAccess = await verifyProjectAccess(pool, projectId, req.platformUser); if (!hasAccess) return res.status(404).json({ error: 'Project not found or access denied' });
   const { ids } = req.body; if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
@@ -686,7 +686,7 @@ app.post('/api/project/:projectId/data/:table/bulk/update', platformAuthMiddlewa
 });
 
 // ============================================================
-//  WEBHOOKS (with retry and logging)
+//  WEBHOOKS
 // ============================================================
 
 app.get('/api/project/:projectId/webhooks/:table', platformAuthMiddleware, async (req, res) => {
@@ -756,7 +756,6 @@ function mapType(type) {
   switch (type) { case 'int': case 'int8': case 'integer': return 'INTEGER'; case 'float': case 'number': return 'REAL'; case 'boolean': case 'bool': return 'BOOLEAN'; case 'date': return 'DATE'; case 'datetime': return 'TIMESTAMP'; default: return 'TEXT'; }
 }
 
-// WebSocket
 const clients = new Map();
 wss.on('connection', (ws) => {
   ws.on('message', (msg) => {
@@ -778,7 +777,6 @@ async function triggerWebhooks(event, oldRecord, newRecord, table, projectId) {
       const hdrs = JSON.parse(headers || '[]');
       const headersObj = { 'Content-Type': 'application/json' };
       hdrs.forEach(h => { if (h.key) headersObj[h.key] = h.value; });
-      // Retry logic
       let success = false;
       for (let attempt = 1; attempt <= MAX_WEBHOOK_RETRIES; attempt++) {
         try {
