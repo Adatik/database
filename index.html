@@ -29,14 +29,14 @@
     th { cursor: pointer; user-select: none; }
     th:hover { background-color: rgba(0,0,0,0.05); }
     .dark th:hover { background-color: rgba(255,255,255,0.05); }
-    .edit-popup { position: absolute; background: white; border: 2px solid #324380; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
+    .edit-popup { position: absolute; background: white; border: 1px solid #76C6C6C6; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); padding: 8px; z-index: 20; display: none; }
     .dark .edit-popup { background: #1A1F24; border-color: #374151; }
-    .filter-panel { background: white; border: 2px solid #324380; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
+    .filter-panel { background: white; border: 1px solid #76C6C6C6; border-radius: 12px; padding: 16px; display: none; position: absolute; right: 0; top: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 20; min-width: 320px; }
     .dark .filter-panel { background: #1A1F24; border-color: #374151; }
     table { border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
     #data-table-container { overflow: visible !important; }
     td { position: relative; }
-    .privacy-rule-card { border: 2px solid #324380; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: white; }
+    .privacy-rule-card { border: 1px solid #76C6C6C6; border-radius: 12px; padding: 12px; margin-bottom: 12px; background: white; }
     .dark .privacy-rule-card { background: #1A1F24; border-color: #374151; }
     .mini-perms-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
     .mini-perms-table th, .mini-perms-table td { padding: 4px 8px; border: 1px solid #e2e8f0; text-align: center; font-size: 0.75rem; }
@@ -52,13 +52,15 @@
     .webhook-header-row { display: flex; gap: 4px; align-items: center; }
     .webhook-header-row input { min-width: 0; flex: 1 1 auto; }
     #webhook-headers { overflow-x: hidden; max-width: 100%; }
-    .project-card { border: 2px solid #324380; border-radius: 12px; padding: 16px; background: white; display: flex; flex-direction: column; gap: 8px; }
+    .project-card { border: 1px solid #76C6C6C6; border-radius: 12px; padding: 16px; background: white; display: flex; flex-direction: column; gap: 8px; }
     .dark .project-card { background: #1A1F24; border-color: #374151; }
     .project-avatar { width: 48px; height: 48px; border-radius: 50%; background: #091747; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; }
     .brand-btn { background-color: #091747; color: white; border: 2px solid #324380; border-radius: 8px; transition: background 0.2s; cursor: pointer; }
     .brand-btn:hover { background-color: #324380; }
-    .brand-outline-btn { background: transparent; border: 2px solid #324380; color: #324380; border-radius: 8px; cursor: pointer; }
-    .brand-outline-btn:hover { background: #091747; color: white; }
+    .brand-outline-btn { background: transparent; border: 1px solid #76C6C6C6; color: #57636C; border-radius: 8px; cursor: pointer; }
+    .brand-outline-btn:hover { background: #F1F4F8; color: #101213; }
+    .dark .brand-outline-btn { color: #95A1AC; border-color: #374151; }
+    .dark .brand-outline-btn:hover { background: #1A1F24; color: white; }
     .api-section-toggle { cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 0; font-weight: 500; }
     .api-section-toggle:hover { opacity: 0.8; }
     .api-section-toggle .arrow { transition: transform 0.2s; display: inline-block; width: 12px; }
@@ -75,21 +77,23 @@
     .dark .auth-sidebar-link:hover { background: #1e293b; }
     .auth-sidebar-link.active { background: #091747; color: white; }
     .auth-sidebar-link.active:hover { background: #091747; }
-    /* Consistent input styling */
+    /* Consistent input styling - #76C6C6C6 border, #95A1AC focus */
     input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="date"], input[type="datetime"], textarea, select {
-      border: 2px solid #324380; border-radius: 8px; outline: none; padding: 8px 12px;
+      border: 1px solid #76C6C6C6; border-radius: 8px; outline: none; padding: 8px 12px;
     }
     input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus, input[type="number"]:focus, input[type="date"]:focus, textarea:focus, select:focus {
-      border-color: #091747; box-shadow: 0 0 0 2px rgba(9,23,71,0.2);
+      border-color: #95A1AC; box-shadow: 0 0 0 2px rgba(149,161,172,0.2);
     }
     .dark input[type="text"], .dark input[type="email"], .dark input[type="password"], .dark input[type="number"], .dark input[type="date"], .dark textarea, .dark select {
       border-color: #374151; background: #1A1F24; color: white;
     }
     .dark input[type="text"]:focus, .dark input[type="email"]:focus, .dark input[type="password"]:focus, .dark input[type="number"]:focus, .dark input[type="date"]:focus, .dark textarea:focus, .dark select:focus {
-      border-color: #324380; box-shadow: 0 0 0 2px rgba(50,67,128,0.3);
+      border-color: #95A1AC; box-shadow: 0 0 0 2px rgba(149,161,172,0.3);
     }
     .user-schema-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
     .user-schema-row input, .user-schema-row select { min-width: 0; }
+    /* Dropdown padding */
+    select { padding: 4px 8px; }
   </style>
 </head>
 <body class="bg-[#F1F4F8] dark:bg-[#101213] text-[#101213] dark:text-white h-screen flex transition-colors">
@@ -178,7 +182,7 @@
           <div id="bulk-bar" class="flex items-center justify-between mb-2 hidden"><span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="selected-count">0</span> of <span id="total-row-count">0</span> rows selected</span><div class="flex gap-2"><button onclick="bulkDelete()" class="px-3 py-1 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600 transition">Delete Selected</button><button onclick="openBulkEditModal()" class="px-3 py-1 text-sm brand-btn rounded-lg">Bulk Edit</button><button onclick="bulkDuplicate()" class="px-3 py-1 text-sm brand-btn rounded-lg">Duplicate Selected</button></div></div>
           <div class="bg-white dark:bg-[#1A1F24] rounded-xl shadow-sm overflow-hidden hidden" id="data-table-container"><table class="w-full" id="data-table"><thead id="table-head"></thead><tbody id="table-body" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody></table></div>
           <div id="no-table-selected" class="text-center text-[#57636C] dark:text-[#95A1AC] mt-16 text-lg">No tables yet. Create one to get started.</div>
-          <div id="pagination" class="flex items-center justify-between mt-4 hidden"><div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">Show <select id="rows-per-page" onchange="changeRowsPerPage()" class="dark:bg-[#1A1F24] dark:text-white"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select> rows</div><div class="flex items-center gap-2"><span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span></span><div class="flex gap-1"><button onclick="prevPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Previous</button><span id="page-numbers" class="flex gap-1"></span><button onclick="nextPage()" class="px-3 py-1 border-2 border-[#324380] rounded text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Next</button></div></div></div>
+          <div id="pagination" class="flex items-center justify-between mt-4 hidden"><div class="flex items-center gap-2 text-sm text-[#57636C] dark:text-[#95A1AC]">Show <select id="rows-per-page" onchange="changeRowsPerPage()" class="dark:bg-[#1A1F24] dark:text-white"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select> rows</div><div class="flex items-center gap-2"><span class="text-sm text-[#57636C] dark:text-[#95A1AC]"><span id="page-start">0</span>-<span id="page-end">0</span> of <span id="total-rows">0</span></span><div class="flex gap-1"><button onclick="prevPage()" class="px-3 py-1 brand-outline-btn rounded text-sm">Previous</button><span id="page-numbers" class="flex gap-1"></span><button onclick="nextPage()" class="px-3 py-1 brand-outline-btn rounded text-sm">Next</button></div></div></div>
         </div>
 
         <div id="auth-table-area" class="hidden">
@@ -214,7 +218,7 @@
   <!-- Edit Table Schema Modal -->
   <div id="edit-table-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit Table: <span id="edit-table-name"></span></h3><div id="edit-columns" class="space-y-3 mb-3"></div><button onclick="addEditColumnField()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button><p id="edit-table-error" class="text-red-500 text-sm mt-2 hidden"></p><div class="flex gap-2 mt-4"><button onclick="saveTableSchema()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save Changes</button><button onclick="closeModal('edit-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- User Schema Modal -->
-  <div id="user-schema-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">User Schema Configuration</h3><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-4">Define authentication columns. At least one <strong>Credential Identity</strong> column is required for login. <strong>Credential Verify</strong> is the secret/password column. <strong>Normal</strong> columns are additional user data.</p><div id="user-schema-columns" class="space-y-2 mb-3"></div><button onclick="addUserSchemaColumn()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button><p id="user-schema-error" class="text-red-500 text-sm mt-2 hidden"></p><div class="flex gap-2 mt-4"><button onclick="saveUserSchema()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save Schema</button><button onclick="closeModal('user-schema-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
+  <div id="user-schema-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">User Schema Configuration</h3><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-4">Define authentication columns. At least one <strong>Credential Identity</strong> and one <strong>Credential Verify</strong> column are required.</p><div id="user-schema-columns" class="space-y-2 mb-3"></div><button onclick="addUserSchemaColumn()" class="text-[#57636C] dark:text-[#95A1AC] text-sm">+ Add column</button><p id="user-schema-error" class="text-red-500 text-sm mt-2 hidden"></p><div class="flex gap-2 mt-4"><button onclick="saveUserSchema()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save Schema</button><button onclick="closeModal('user-schema-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Add Row Modal -->
   <div id="add-row-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add New Row</h3><div class="mb-3"><label class="block text-sm text-[#57636C] dark:text-[#95A1AC] mb-1">ID (optional)</label><input id="modal-add-id" type="number" placeholder="Leave empty to auto-generate" class="w-full dark:bg-[#1A1F24] dark:text-white" /><p class="text-xs text-gray-400 mt-1">Leave empty to automatically generate a unique ID.</p></div><div id="add-row-fields" class="space-y-3"></div><p id="add-row-error" class="text-red-500 text-sm mt-2 hidden"></p><div class="flex gap-2 mt-4"><button onclick="confirmAddRow()" class="brand-btn px-4 py-2 rounded-lg flex-1">Add Row</button><button onclick="closeModal('add-row-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Bulk Edit Modal -->
@@ -226,17 +230,17 @@
   <!-- Webhook Form Modal -->
   <div id="webhook-form-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 id="webhook-form-title" class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add Webhook</h3><div class="space-y-3"><input id="webhook-name" placeholder="Webhook name (optional)" class="w-full dark:bg-[#1A1F24] dark:text-white" /><input id="webhook-url" placeholder="URL" class="w-full dark:bg-[#1A1F24] dark:text-white" /><div><label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Events</label><div class="flex gap-2 mt-1"><label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="insert"> Insert</label><label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="update"> Update</label><label class="flex items-center gap-1 text-sm"><input type="checkbox" class="webhook-event-cb" value="delete"> Delete</label></div></div><div><label class="text-sm text-[#57636C] dark:text-[#95A1AC]">Headers</label><div id="webhook-headers" class="space-y-2 mt-1 max-h-40 overflow-y-auto"></div><button onclick="addWebhookHeader()" class="text-[#57636C] dark:text-[#95A1AC] text-sm hover:underline mt-1">+ Add header</button></div><div class="flex gap-2"><button onclick="saveWebhook()" class="brand-btn px-4 py-2 rounded-lg text-sm">Save Webhook</button><button onclick="closeModal('webhook-form-modal')" class="brand-outline-btn px-4 py-2 rounded-lg text-sm">Cancel</button></div></div></div></div>
   <!-- API Docs Modal -->
-  <div id="api-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">API Documentation – <span id="api-table-name"></span></h3><div class="flex items-center gap-2"><button onclick="closeModal('api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button></div></div><div id="api-content" class="space-y-6"></div></div></div>
+  <div id="api-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">API Documentation – <span id="api-table-name"></span></h3><div class="flex items-center gap-2"><button onclick="closeModal('api-modal')" class="brand-outline-btn px-3 py-1 rounded text-sm">✕</button></div></div><div id="api-content" class="space-y-6"></div></div></div>
   <!-- Auth API Modal -->
-  <div id="auth-api-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">Auth API Documentation</h3><div class="flex items-center gap-2"><button onclick="closeModal('auth-api-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button></div></div><div id="auth-api-content" class="space-y-6"></div></div></div>
+  <div id="auth-api-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">Auth API Documentation</h3><div class="flex items-center gap-2"><button onclick="closeModal('auth-api-modal')" class="brand-outline-btn px-3 py-1 rounded text-sm">✕</button></div></div><div id="auth-api-content" class="space-y-6"></div></div></div>
   <!-- Logs Modal -->
-  <div id="logs-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">Real‑Time Change Log</h3><button onclick="closeModal('logs-modal')" class="text-[#57636C] dark:text-[#95A1AC] hover:text-[#101213] dark:hover:text-white text-xl">✕</button></div><div id="logs-content" class="text-sm space-y-1 text-[#57636C] dark:text-[#95A1AC] max-h-[60vh] overflow-y-auto"></div></div></div>
+  <div id="logs-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-bold text-[#101213] dark:text-white">Real‑Time Change Log</h3><button onclick="closeModal('logs-modal')" class="brand-outline-btn px-3 py-1 rounded text-sm">✕</button></div><div id="logs-content" class="text-sm space-y-1 text-[#57636C] dark:text-[#95A1AC] max-h-[60vh] overflow-y-auto"></div></div></div>
   <!-- Delete Table Modal -->
   <div id="delete-table-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Delete Table</h3><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">Type the table name <strong id="delete-table-name"></strong> to confirm deletion.</p><div class="flex items-center gap-2 mb-2"><input id="delete-confirm-input" class="w-full dark:bg-[#1A1F24] dark:text-white" placeholder="Table name" /><button onclick="copyTableName()" class="brand-outline-btn px-2 py-1 rounded text-sm">Copy</button></div><p id="delete-table-error" class="text-red-500 text-sm hidden"></p><div class="flex gap-2 mt-4"><button onclick="confirmDeleteTable()" class="bg-red-600 text-white px-4 py-2 rounded-lg flex-1">Delete</button><button onclick="closeModal('delete-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Rename Table Modal -->
   <div id="rename-table-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Rename Table</h3><input id="rename-table-input" class="w-full mb-3 dark:bg-[#1A1F24] dark:text-white" /><p id="rename-table-error" class="text-red-500 text-sm hidden"></p><div class="flex gap-2 mt-4"><button onclick="confirmRenameTable()" class="brand-btn px-4 py-2 rounded-lg flex-1">Rename</button><button onclick="closeModal('rename-table-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Add User Modal -->
-  <div id="add-user-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add User</h3><div id="add-user-fields" class="space-y-3"></div><div class="flex gap-2 mt-4"><button onclick="addUser()" class="brand-btn px-4 py-2 rounded-lg flex-1">Add User</button><button onclick="closeModal('add-user-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
+  <div id="add-user-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Add User</h3><p class="text-xs text-[#57636C] dark:text-[#95A1AC] mb-3">At least one identity and one verify field required.</p><div id="add-user-fields" class="space-y-3"></div><div class="flex gap-2 mt-4"><button onclick="addUser()" class="brand-btn px-4 py-2 rounded-lg flex-1">Add User</button><button onclick="closeModal('add-user-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Edit User Modal -->
   <div id="edit-user-modal" class="modal-overlay"><div class="bg-white dark:bg-[#1A1F24] p-6 rounded-xl shadow-2xl w-full max-w-md"><h3 class="text-lg font-bold mb-4 text-[#101213] dark:text-white">Edit User</h3><input type="hidden" id="edit-user-id" /><div id="edit-user-fields" class="space-y-3"></div><div class="flex gap-2 mt-4"><button onclick="saveEditUser()" class="brand-btn px-4 py-2 rounded-lg flex-1">Save</button><button onclick="closeModal('edit-user-modal')" class="brand-outline-btn px-4 py-2 rounded-lg">Cancel</button></div></div></div>
   <!-- Project Modal -->
@@ -275,7 +279,7 @@
     let privacyRules = []; let currentPage = 1; let rowsPerPage = 10; let totalRows = 0;
     let activeFilters = []; let authFilters = []; let webhookHeaders = []; let selectedRows = new Set();
     let anonKeyValue = null; let adminKeyValue = null; let webhookEditingId = null;
-    let userSchemaCache = null; // Cached user schema
+    let userSchemaCache = null;
 
     function toggleDarkMode() { const html = document.documentElement; if (html.classList.contains('dark')) { html.classList.remove('dark'); localStorage.theme = 'light'; } else { html.classList.add('dark'); localStorage.theme = 'dark'; } }
     function showToast(msg, isError = false) { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'fixed bottom-5 right-5 px-5 py-3 rounded-lg shadow-lg z-50 transition-all ' + (isError ? 'bg-red-600 text-white' : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'); t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000); }
@@ -293,15 +297,7 @@
 
     async function loadKeys() { try { const res = await fetch(`${API_BASE}/api/auth-keys`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); anonKeyValue = data.anonKey || ''; adminKeyValue = data.adminKey || ''; } catch(e) { anonKeyValue = ''; adminKeyValue = ''; } }
 
-    async function getUserSchema() {
-      if (userSchemaCache) return userSchemaCache;
-      if (!activeProjectId) return [];
-      try {
-        const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users-schema`, { headers: { 'Authorization': `Bearer ${token}` } });
-        userSchemaCache = await res.json();
-        return userSchemaCache;
-      } catch(e) { return []; }
-    }
+    async function getUserSchema() { if (userSchemaCache) return userSchemaCache; if (!activeProjectId) return []; try { const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users-schema`, { headers: { 'Authorization': `Bearer ${token}` } }); userSchemaCache = await res.json(); return userSchemaCache; } catch(e) { return []; } }
 
     window.addEventListener('load', async () => { const configRes = await fetch(`${API_BASE}/api/platform/config`); const config = await configRes.json(); if (config.allowSignup) document.getElementById('signup-btn').classList.remove('hidden'); if (token) showApp(); });
 
@@ -411,37 +407,19 @@
         if (inputs.length >= 1 && selects.length >= 2) {
           const name = inputs[0].value.trim();
           if (name) {
-            columns.push({
-              name: name,
-              type: selects[0].value,
-              auth_role: selects[1].value
-            });
+            columns.push({ name: name, type: selects[0].value, auth_role: selects[1].value });
           }
         }
       });
-      // Ensure at least one identity column
       const identityCols = columns.filter(c => c.auth_role === 'identity');
-      if (identityCols.length === 0) {
-        document.getElementById('user-schema-error').textContent = 'At least one Credential Identity column is required.';
-        document.getElementById('user-schema-error').classList.remove('hidden');
-        return;
-      }
+      const verifyCols = columns.filter(c => c.auth_role === 'verify');
+      if (identityCols.length === 0) { showToast('At least one Credential Identity column is required', true); return; }
+      if (verifyCols.length === 0) { showToast('At least one Credential Verify column is required', true); return; }
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/tables/users/schema`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ columns })
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ columns })
       });
-      if (res.ok) {
-        closeModal('user-schema-modal');
-        userSchemaCache = null;
-        await loadAllTables();
-        loadUsersTable();
-        showToast('User schema updated');
-      } else {
-        const err = await res.json();
-        document.getElementById('user-schema-error').textContent = err.error || 'Failed to save';
-        document.getElementById('user-schema-error').classList.remove('hidden');
-      }
+      if (res.ok) { closeModal('user-schema-modal'); userSchemaCache = null; await loadAllTables(); loadUsersTable(); showToast('User schema updated'); }
+      else { const err = await res.json(); showToast(err.error || 'Failed to save', true); }
     }
 
     // ======= AUTHENTICATION (PROJECT USERS) =======
@@ -477,15 +455,17 @@
       const schema = await getUserSchema();
       const fields = schema.filter(c => c.auth_role !== 'system');
       const body = {};
-      let hasIdentity = false;
+      let hasIdentity = false, hasVerify = false;
       fields.forEach(c => {
         const el = document.getElementById(`add-user-${c.name}`);
         if (el && el.value.trim()) {
           body[c.name] = el.value.trim();
           if (c.auth_role === 'identity') hasIdentity = true;
+          if (c.auth_role === 'verify') hasVerify = true;
         }
       });
       if (!hasIdentity) return showToast('At least one identity field is required', true);
+      if (!hasVerify) return showToast('At least one verification field is required', true);
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
       if (res.ok) { closeModal('add-user-modal'); loadUsersTable(); showToast('User added'); }
       else { const data = await res.json(); showToast(data.error || 'Failed', true); }
@@ -517,9 +497,7 @@
       const body = {};
       fields.forEach(c => {
         const el = document.getElementById(`edit-user-${c.name}`);
-        if (el && (c.auth_role === 'verify' ? el.value.trim() !== '' : true)) {
-          body[c.name] = el.value.trim();
-        }
+        if (el && (c.auth_role === 'verify' ? el.value.trim() !== '' : true)) body[c.name] = el.value.trim();
       });
       const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) });
       if (res.ok) { closeModal('edit-user-modal'); loadUsersTable(); showToast('User updated'); }
@@ -527,11 +505,11 @@
     }
     function applyAuthSearch() { loadUsersTable(); }
     function toggleAuthFilterPanel() { const panel = document.getElementById('auth-filter-panel'); panel.style.display = panel.style.display === 'block' ? 'none' : 'block'; if (panel.style.display === 'block') renderAuthFilterConditions(); }
-    async function renderAuthFilterConditions() { const container = document.getElementById('auth-filter-conditions'); const schema = await getUserSchema(); const columns = schema.filter(c => c.auth_role !== 'verify'); container.innerHTML = authFilters.map((f, i) => { const colMeta = columns.find(c => c.name === f.column); const type = colMeta ? colMeta.type : 'string'; const allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string; return `<div class="flex items-center gap-2"><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterColumn(${i}, this.value)">${columns.map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterOp(${i}, this.value)">${allowedOps.map(o => `<option value="${o}" ${f.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><input value="${f.value}" class="flex-1 dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterValue(${i}, this.value)" /><button onclick="removeAuthFilterCondition(${i})" class="text-red-400 hover:text-red-600">✕</button></div>`; }).join(''); }
+    async function renderAuthFilterConditions() { const container = document.getElementById('auth-filter-conditions'); const schema = await getUserSchema(); const columns = schema.filter(c => c.auth_role !== 'verify' && c.auth_role !== 'system'); container.innerHTML = authFilters.map((f, i) => { const colMeta = columns.find(c => c.name === f.column); const type = colMeta ? colMeta.type : 'string'; const allowedOps = TYPE_OPERATORS[type] || TYPE_OPERATORS.string; return `<div class="flex items-center gap-2"><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterColumn(${i}, this.value)">${columns.map(c => `<option value="${c.name}" ${f.column === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}</select><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterOp(${i}, this.value)">${allowedOps.map(o => `<option value="${o}" ${f.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><input value="${f.value}" class="flex-1 dark:bg-[#1A1F24] dark:text-white" onchange="updateAuthFilterValue(${i}, this.value)" /><button onclick="removeAuthFilterCondition(${i})" class="text-red-400 hover:text-red-600">✕</button></div>`; }).join(''); }
     function updateAuthFilterColumn(idx, col) { authFilters[idx].column = col; renderAuthFilterConditions(); }
     function updateAuthFilterOp(idx, op) { authFilters[idx].operator = op; }
     function updateAuthFilterValue(idx, val) { authFilters[idx].value = val; }
-    async function addAuthFilterCondition() { const schema = await getUserSchema(); const firstCol = schema.filter(c => c.auth_role !== 'verify')[0]?.name || 'id'; authFilters.push({ column: firstCol, operator: 'eq', value: '' }); renderAuthFilterConditions(); }
+    async function addAuthFilterCondition() { const schema = await getUserSchema(); const firstCol = schema.filter(c => c.auth_role !== 'verify' && c.auth_role !== 'system')[0]?.name || 'id'; authFilters.push({ column: firstCol, operator: 'eq', value: '' }); renderAuthFilterConditions(); }
     function removeAuthFilterCondition(idx) { authFilters.splice(idx, 1); renderAuthFilterConditions(); }
     function applyAuthFilters() { loadUsersTable(); document.getElementById('auth-filter-panel').style.display = 'none'; }
     function clearAllAuthFilters() { authFilters = []; document.getElementById('auth-search-input').value = ''; renderAuthFilterConditions(); loadUsersTable(); }
@@ -541,7 +519,7 @@
     function renderTableList() { document.getElementById('table-list').innerHTML = allTables.map(t => `<li class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${selectedTable === t.name ? 'bg-[#091747]/10 font-bold' : 'hover:bg-gray-100 dark:hover:bg-[#1A1F24] text-[#101213] dark:text-white'}" onclick="selectTable('${t.name}')"><span class="flex-1 truncate">📄 ${t.name}</span><div class="hidden group-hover:flex items-center space-x-1"><button onclick="event.stopPropagation(); openEditTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm">✏️</button><button onclick="event.stopPropagation(); openRenameTableModal('${t.name}')" class="text-gray-400 hover:text-blue-500 text-sm">🔤</button><button onclick="event.stopPropagation(); openDeleteTableModal('${t.name}')" class="text-gray-400 hover:text-red-500 text-sm">🗑️</button></div></li>`).join(''); }
     function selectTable(name) { selectedTable = name; localStorage.setItem('selectedTable', name); document.getElementById('current-table-name').textContent = name; document.getElementById('no-table-selected').classList.add('hidden'); document.getElementById('data-table-container').classList.remove('hidden'); document.getElementById('pagination').classList.remove('hidden'); document.getElementById('bulk-bar').classList.add('hidden'); selectedRows.clear(); const meta = allTables.find(t => t.name === name); currentColumns = meta ? meta.columns : []; currentPage = 1; fetchAndRenderRows(); renderTableList(); }
     async function fetchAndRenderRows() { if (!selectedTable || !activeProjectId) return; const limit = rowsPerPage, offset = (currentPage - 1) * limit; let url = `${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}?limit=${limit}&offset=${offset}`; if (sortColumn) url += `&sort=${sortColumn}&order=${sortAsc ? 'asc' : 'desc'}`; const searchQuery = document.getElementById('search-input').value.trim(); if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`; activeFilters.forEach((f, i) => { url += `&filter[${i}][column]=${encodeURIComponent(f.column)}&filter[${i}][operator]=${f.operator}&filter[${i}][value]=${encodeURIComponent(f.value)}`; }); const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } }); if (res.status === 401) { signOut(); return; } currentRows = await res.json(); totalRows = currentRows.length; renderTable(); renderPagination(); updateBulkBar(); }
-    function renderPagination() { const totalPages = Math.ceil(totalRows / rowsPerPage), start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1, end = Math.min(currentPage * rowsPerPage, totalRows); document.getElementById('page-start').textContent = start; document.getElementById('page-end').textContent = end; document.getElementById('total-rows').textContent = totalRows; const pageNumbers = document.getElementById('page-numbers'); pageNumbers.innerHTML = ''; for (let i = 1; i <= totalPages; i++) { const btn = document.createElement('button'); btn.textContent = i; btn.className = `px-3 py-1 border rounded text-sm ${i === currentPage ? 'bg-[#091747] text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`; btn.onclick = () => { currentPage = i; fetchAndRenderRows(); }; pageNumbers.appendChild(btn); } }
+    function renderPagination() { const totalPages = Math.ceil(totalRows / rowsPerPage), start = totalRows === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1, end = Math.min(currentPage * rowsPerPage, totalRows); document.getElementById('page-start').textContent = start; document.getElementById('page-end').textContent = end; document.getElementById('total-rows').textContent = totalRows; const pageNumbers = document.getElementById('page-numbers'); pageNumbers.innerHTML = ''; for (let i = 1; i <= totalPages; i++) { const btn = document.createElement('button'); btn.textContent = i; btn.className = `px-3 py-1 border rounded text-sm ${i === currentPage ? 'bg-[#091747] text-white' : 'brand-outline-btn'}`; btn.onclick = () => { currentPage = i; fetchAndRenderRows(); }; pageNumbers.appendChild(btn); } }
     function prevPage() { if (currentPage > 1) { currentPage--; fetchAndRenderRows(); } }
     function nextPage() { if (currentPage < Math.ceil(totalRows / rowsPerPage)) { currentPage++; fetchAndRenderRows(); } }
     function changeRowsPerPage() { rowsPerPage = parseInt(document.getElementById('rows-per-page').value); currentPage = 1; fetchAndRenderRows(); }
@@ -586,7 +564,7 @@
     async function confirmAddRow() { if (!activeProjectId) return showToast('No project selected', true); const body = {}; const idField = document.getElementById('modal-add-id').value.trim(); if (idField) body.id = idField; currentColumns.forEach(c => { const el = document.getElementById(`modal-add-${c.name}`); if (el) body[c.name] = el.value; }); const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/data/${selectedTable}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(body) }); if (res.ok) { closeModal('add-row-modal'); fetchAndRenderRows(); showToast('Row added'); } else { const err = await res.json(); showToast(err.error || 'Add failed', true); } }
 
     // ======= PRIVACY =======
-    function getAuthColumns() { const base = ['Auth.ID', 'Auth.Email']; return base; }
+    function getAuthColumns() { return ['Auth.ID', 'Auth.Email']; }
     function openPrivacyModal() { if (!selectedTable) return; document.getElementById('privacy-table-name').textContent = selectedTable; const table = allTables.find(t => t.name === selectedTable), priv = table?.privacy || {}; privacyRules = []; ['read','write','update','delete'].forEach(op => { if (priv[op]) priv[op].split(' AND ').forEach(condition => { const parts = condition.split(' '), col = parts[0] || '', opVal = parts[1] || 'eq'; let ref = '', val = ''; const refMatch = condition.match(/^([^ ]+)\s+([^ ]+)\s+\{([^}]+)\}\s*(.*)/); if (refMatch) { ref = refMatch[3]; val = refMatch[4]; } else { val = parts.slice(2).join(' '); if (val === '@user_id') ref = 'Auth.ID'; else if (val === '@user_email') ref = 'Auth.Email'; } if (!privacyRules.find(r => r.column === col && r.operator === opVal && r.reference === ref && r.values === val)) privacyRules.push({ column: col, operator: opVal, reference: ref, values: val, columns: { read: [], write: [], update: [], delete: [] } }); }); }); const colPerms = table?.column_permissions || {}; privacyRules.forEach(rule => { rule.columns = { read: colPerms.read ? [...colPerms.read] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: colPerms.write ? [...colPerms.write] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: colPerms.update ? [...colPerms.update] : [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: colPerms.delete ? [...colPerms.delete] : [] }; }); if (!privacyRules.length) privacyRules.push({ column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id', operator: 'eq', reference: 'Auth.ID', values: '', columns: { read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: [] } }); renderPrivacyCards(); document.getElementById('privacy-modal').classList.add('active'); }
     function renderPrivacyCards() { const container = document.getElementById('privacy-rules-container'), allCols = ['id', ...currentColumns.filter(c => c.name !== 'password').map(c => c.name)], authOpts = getAuthColumns().map(a => `<option value="${a}">${a}</option>`).join(''), dbOpts = allTables.filter(t => t.name !== 'users').map(t => t.columns.filter(c => c.name !== 'password').map(c => `<option value="${t.name}.${c.name}">${t.name}.${c.name}</option>`).join('')).join(''), referenceOptions = `<optgroup label="Authentication">${authOpts}</optgroup><optgroup label="Database Tables">${dbOpts}</optgroup>`; container.innerHTML = privacyRules.map((rule, idx) => { const showValues = rule.reference && rule.reference.includes('.'); return `<div class="privacy-rule-card"><div class="flex flex-wrap items-center gap-2 mb-3"><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyColumn(${idx}, this.value)">${allCols.map(c => `<option value="${c}" ${rule.column === c ? 'selected' : ''}>${c}</option>`).join('')}</select><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyOperator(${idx}, this.value)">${OPERATORS.map(o => `<option value="${o}" ${rule.operator === o ? 'selected' : ''}>${OPERATOR_LABELS[o] || o}</option>`).join('')}</select><select class="dark:bg-[#1A1F24] dark:text-white" onchange="updatePrivacyReference(${idx}, this.value)">${referenceOptions.replace(new RegExp(`value="${rule.reference}"`, 'g'), `value="${rule.reference}" selected`)}</select>${showValues ? `<input class="dark:bg-[#1A1F24] dark:text-white flex-1 min-w-[150px]" value="${rule.values || ''}" placeholder="Specific Values (optional)" onchange="updatePrivacyValues(${idx}, this.value)" /><small class="text-xs text-gray-400 w-full">Separate multiple values with commas. Example: London,Dubai</small>` : ''}<button onclick="deletePrivacyRule(${idx})" class="text-red-400 hover:text-red-600 ml-auto">✕</button></div><table class="mini-perms-table"><thead><tr><th>Column</th><th>Read</th><th>Write</th><th>Update</th><th class="opacity-70">Delete</th></tr></thead><tbody>${allCols.map(c => `<tr><td>${c}</td><td><input type="checkbox" ${rule.columns.read.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','read',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.write.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','write',${idx}, this.checked)"></td><td><input type="checkbox" ${rule.columns.update.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','update',${idx}, this.checked)"></td><td class="opacity-70"><input type="checkbox" ${rule.columns.delete.includes(c) ? 'checked' : ''} onchange="toggleRuleColumn('${c}','delete',${idx}, this.checked)"></td></tr>`).join('')}</tbody></table></div>`; }).join(''); }
     function addPrivacyRuleCard() { privacyRules.push({ column: currentColumns.filter(c => c.name !== 'password')[0]?.name || 'id', operator: 'eq', reference: 'Auth.ID', values: '', columns: { read: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], write: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], update: [...currentColumns.filter(c => c.name !== 'password').map(c=>c.name), 'id'], delete: [] } }); renderPrivacyCards(); }
@@ -632,7 +610,7 @@
       const keyOpts = []; if (anonKeyValue) keyOpts.push(`<option value="anon" selected>Anon key</option>`); if (adminKeyValue) keyOpts.push(`<option value="admin">Admin key</option>`);
       const keySel = keyOpts.length ? `<select id="api-key-selector" onchange="updateApiSnippets()" class="text-xs dark:bg-[#1A1F24] dark:text-white">${keyOpts.join('')}</select>` : '<span class="text-xs text-gray-500">No keys available</span>';
       document.getElementById('api-content').innerHTML = `<div class="flex items-center gap-2 mb-4"><span class="text-sm">API Key:</span>${keySel}<button onclick="loadKeys().then(()=>openApiModal())" class="text-xs brand-btn px-2 py-1 rounded">Refresh</button></div>` +
-        makeCollapsible('🔐 Authentication', `<p class="text-sm mb-2">All endpoints accept either method:</p><table class="api-param-table w-full"><thead><tr><th>Parameter</th><th>Expected Value</th><th>Description</th></tr></thead><tbody><tr><td>x-api-key</td><td>anon key or admin key</td><td>API key used to authenticate the request</td></tr><tr><td>Authorization</td><td>Bearer &lt;access_token&gt;</td><td>User access token (project user or platform admin)</td></tr></tbody></table><p class="text-xs text-gray-400 mt-2">Protected endpoints accept either an Admin token or a User token.</p>`, true) +
+        makeCollapsible('🔐 Authentication', `<p class="text-sm mb-2">All endpoints accept either method:</p><table class="api-param-table w-full"><thead><tr><th>Parameter</th><th>Expected Value</th><th>Description</th></tr></thead><tbody><tr><td>x-api-key</td><td>anon key or admin key</td><td>API key used to authenticate the request</td></tr><tr><td>Authorization</td><td>Bearer &lt;access_token&gt;</td><td>User access token (project user or platform admin)</td></tr></tbody></table>`, true) +
         methods.map(m => {
           const badge = m.method==='GET'?'bg-green-100 text-green-800':m.method==='POST'?'bg-blue-100 text-blue-800':m.method==='PUT'?'bg-yellow-100 text-yellow-800':'bg-red-100 text-red-800';
           let html = `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded ${badge}">${m.method}</span><code class="text-sm font-mono">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">${m.desc}</p>`;
@@ -649,33 +627,29 @@
     function updateApiSnippets() { const keyEl = document.getElementById('api-key-selector'); let tokenDisplay = 'YOUR_KEY'; if (keyEl) { if (keyEl.value === 'anon') tokenDisplay = anonKeyValue || 'YOUR_ANON_KEY'; else if (keyEl.value === 'admin') tokenDisplay = adminKeyValue || 'YOUR_ADMIN_KEY'; } const base = API_BASE, methods = [{ method: 'GET', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'POST', url: `/api/project/${activeProjectId}/data/${selectedTable}` },{ method: 'PUT', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` },{ method: 'DELETE', url: `/api/project/${activeProjectId}/data/${selectedTable}/:id` }], exampleFields = {}; currentColumns.forEach(c => exampleFields[c.name] = 'value'); methods.forEach(m => { const curlEl = document.getElementById(`curl-${m.method}`); if (!curlEl) return; const authHeader = `-H "x-api-key: ${tokenDisplay}" -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`; if (m.method === 'GET') curlEl.textContent = `curl "${base}${m.url}?sort=id&order=desc&limit=10&offset=0" \\\n  ${authHeader}`; else if (m.method === 'DELETE') curlEl.textContent = `curl -X DELETE "${base}${m.url}" \\\n  ${authHeader}`; else curlEl.textContent = `curl -X ${m.method} "${base}${m.url}" \\\n  ${authHeader} \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(exampleFields)}'`; }); }
     async function openAuthApiModal() {
       const base = API_BASE;
-      const regResponse = { id: 1, access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
-      const loginResponse = { id: 1, access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
+      const regResponse = { access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
+      const loginResponse = { access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
       const refreshResponse = { access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
-      const verifyResponse = { id: 1, access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
-      // Add identity columns from schema
+      const verifyResponse = { access_token: 'eyJ...', refresh_token: 'eyJ...', token_type: 'Bearer', expires_in: 3600 };
       const schema = await getUserSchema();
       const identityCols = schema.filter(c => c.auth_role === 'identity');
-      identityCols.forEach(c => { regResponse[c.name] = c.type === 'integer' ? 1 : 'value'; loginResponse[c.name] = c.type === 'integer' ? 1 : 'value'; verifyResponse[c.name] = c.type === 'integer' ? 1 : 'value'; });
       const verifyCols = schema.filter(c => c.auth_role === 'verify');
+      identityCols.forEach(c => { regResponse[c.name] = c.type === 'integer' ? 1 : 'value'; loginResponse[c.name] = c.type === 'integer' ? 1 : 'value'; verifyResponse[c.name] = c.type === 'integer' ? 1 : 'value'; });
       
       const methods = [
-        { method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new user (requires x-api-key only)', body: {}, responseExample: regResponse, responseFields: [{name:'id',type:'Number',desc:'User ID'},{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key (anon or admin). No Authorization header needed. Provide any identity + verify columns.' },
-        { method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login and receive tokens (requires x-api-key only)', body: {}, responseExample: loginResponse, responseFields: [{name:'id',type:'Number',desc:'User ID'},{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key (anon or admin). No Authorization header needed.' },
-        { method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh`, desc: 'Refresh access token', body: {refresh_token:'eyJ...'}, responseExample: refreshResponse, responseFields: [{name:'access_token',type:'String',desc:'New JWT access token'},{name:'refresh_token',type:'String',desc:'Same refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key (anon or admin).' },
-        { method: 'POST', url: `/api/project/${activeProjectId}/auth/verify`, desc: 'Admin verify user identity (generates tokens)', body: {}, responseExample: verifyResponse, responseFields: [{name:'id',type:'Number',desc:'User ID'},{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires platform admin Authorization header. Provide an identity column value to verify a user.' }
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/register`, desc: 'Register a new user', body: {}, responseExample: regResponse, responseFields: [{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key. Provide at least one identity + one verify field.' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/login`, desc: 'Login', body: {}, responseExample: loginResponse, responseFields: [{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key. Provide one identity + one verify field.' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/refresh`, desc: 'Refresh token', body: {refresh_token:'eyJ...'}, responseExample: refreshResponse, responseFields: [{name:'access_token',type:'String',desc:'New access token'},{name:'refresh_token',type:'String',desc:'Same refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires x-api-key.' },
+        { method: 'POST', url: `/api/project/${activeProjectId}/auth/verify`, desc: 'Admin verify user identity', body: {}, responseExample: verifyResponse, responseFields: [{name:'access_token',type:'String',desc:'JWT access token'},{name:'refresh_token',type:'String',desc:'JWT refresh token'},{name:'token_type',type:'String',desc:'Bearer'},{name:'expires_in',type:'Number',desc:'Token lifetime in seconds'}], authNote: 'Requires platform admin Authorization header. Provide one identity column.' }
       ];
-      // Set request body examples
       identityCols.forEach(c => { methods[0].body[c.name] = 'value'; methods[1].body[c.name] = 'value'; methods[3].body[c.name] = 'value'; });
       verifyCols.forEach(c => { methods[0].body[c.name] = 'password'; methods[1].body[c.name] = 'password'; });
-      
-      // Add identity/verify columns to response fields
       identityCols.forEach(c => { methods[0].responseFields.push({name:c.name,type:c.type,desc:'Identity column'}); methods[1].responseFields.push({name:c.name,type:c.type,desc:'Identity column'}); methods[3].responseFields.push({name:c.name,type:c.type,desc:'Identity column'}); });
       
       const keyOpts = []; if (anonKeyValue) keyOpts.push(`<option value="anon" selected>Anon key</option>`); if (adminKeyValue) keyOpts.push(`<option value="admin">Admin key</option>`);
       const keySel = keyOpts.length ? `<select id="auth-api-key-selector" onchange="updateAuthApiSnippets()" class="text-xs dark:bg-[#1A1F24] dark:text-white">${keyOpts.join('')}</select>` : '<span class="text-xs text-gray-500">No keys available</span>';
       document.getElementById('auth-api-content').innerHTML = `<div class="flex items-center gap-2 mb-4"><span class="text-sm">API Key:</span>${keySel}<button onclick="loadKeys().then(()=>openAuthApiModal())" class="text-xs brand-btn px-2 py-1 rounded">Refresh</button></div>` +
-        makeCollapsible('🔐 Authentication', `<p class="text-sm mb-2">Login and Register are public endpoints. They only require an API key — no Authorization header needed.</p><table class="api-param-table w-full"><thead><tr><th>Parameter</th><th>Expected Value</th><th>Description</th></tr></thead><tbody><tr><td>x-api-key</td><td>anon key or admin key</td><td>API key used to authenticate the request</td></tr><tr><td>Authorization</td><td>Bearer &lt;access_token&gt;</td><td>Required for protected endpoints. Accepts Admin or User tokens.</td></tr></tbody></table>`, true) +
+        makeCollapsible('🔐 Authentication', `<p class="text-sm mb-2">Login and Register only require an API key. Protected endpoints accept Admin or User tokens.</p><table class="api-param-table w-full"><thead><tr><th>Parameter</th><th>Expected Value</th><th>Description</th></tr></thead><tbody><tr><td>x-api-key</td><td>anon key or admin key</td><td>Required for all endpoints</td></tr><tr><td>Authorization</td><td>Bearer &lt;access_token&gt;</td><td>Required for verify endpoint. Accepts Admin or User tokens.</td></tr></tbody></table>`, true) +
         methods.map(m => {
           let html = `<div class="border dark:border-gray-600 rounded-lg p-4 mb-4"><div class="flex items-center gap-3 mb-2"><span class="px-2 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">${m.method}</span><code class="text-sm font-mono">${m.url}</code></div><p class="text-sm text-[#57636C] dark:text-[#95A1AC] mb-2">${m.desc}</p>`;
           if (m.authNote) html += `<p class="text-xs text-yellow-600 dark:text-yellow-400 mb-2">🔑 ${m.authNote}</p>`;
@@ -710,22 +684,11 @@
           await fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${webhookEditingId}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
         }
         const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${selectedTable}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ name, url, events, headers })
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ name, url, events, headers })
         });
-        if (res.ok) {
-          closeModal('webhook-form-modal');
-          loadWebhooksTable();
-          showToast(webhookEditingId ? 'Webhook updated' : 'Webhook added');
-          webhookEditingId = null;
-        } else {
-          const err = await res.json();
-          showToast(err.error || 'Failed to save webhook', true);
-        }
-      } catch(e) {
-        showToast('Network error saving webhook', true);
-      }
+        if (res.ok) { closeModal('webhook-form-modal'); loadWebhooksTable(); showToast(webhookEditingId ? 'Webhook updated' : 'Webhook added'); webhookEditingId = null; }
+        else { const err = await res.json(); showToast(err.error || 'Failed to save webhook', true); }
+      } catch(e) { showToast('Network error saving webhook', true); }
     }
     async function editWebhook(id) { openWebhookFormModal(id); }
     async function deleteWebhook(id) { if (!confirm('Delete this webhook?')) return; const res = await fetch(`${API_BASE}/api/project/${activeProjectId}/webhooks/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { loadWebhooksTable(); showToast('Webhook deleted'); } else showToast('Failed', true); }
